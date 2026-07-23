@@ -8,22 +8,22 @@ ApplicationWindow {
     height: 430
     title: "Just Did"
 
-    // X button → quit. Minimize (-) → show floating window
+    // X button → quit app
     onClosing: Qt.quit()
 
-    Timer {
-        id: minimizeTimer
-        interval: 0
-        onTriggered: {
-            appWindow.visible = false
-            floatingWindow.show()
+    // Minimize button → show floating window instead of minimizing
+    onWindowStateChanged: {
+        if (windowState === Qt.WindowMinimized) {
+            windowState = Qt.WindowNoState
+            visible = false
+            floatingWinTimer.start()
         }
     }
 
-    onVisibilityChanged: {
-        if (appWindow.visibility === Window.Minimized) {
-            minimizeTimer.start()
-        }
+    Timer {
+        id: floatingWinTimer
+        interval: 50
+        onTriggered: floatingWin.visible = true
     }
 
     MainWindow {
@@ -31,6 +31,6 @@ ApplicationWindow {
     }
 
     FloatingWindow {
-        id: floatingWindow
+        id: floatingWin
     }
 }

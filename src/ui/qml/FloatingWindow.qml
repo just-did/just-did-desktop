@@ -10,13 +10,17 @@ Window {
 
     property bool expanded: false
 
-    // Bind size to expanded state
-    width: expanded ? 300 : 180
-    height: expanded ? 200 : 36
+    // Collapsed size: 180x36, expanded size: 300x200
+    width: 180
+    height: 36
+
+    onExpandedChanged: {
+        if (expanded) { width = 300; height = 200 }
+        else { width = 180; height = 36 }
+    }
 
     // Collapsed state
     Rectangle {
-        id: collapsedState
         anchors.fill: parent
         color: "#4A90D9"
         radius: 8
@@ -37,7 +41,6 @@ Window {
 
     // Expanded state
     Rectangle {
-        id: expandedState
         anchors.fill: parent
         color: "white"
         radius: 8
@@ -86,24 +89,17 @@ Window {
                 }
             }
         }
+    }
 
-        // Click blank area to collapse
-        MouseArea {
-            anchors.fill: parent
-            z: -1
-            onClicked: floatingWin.expanded = false
-            onDoubleClicked: {
-                floatingWin.hide()
-                appWindow.visible = true
-            }
+    // Click empty area to collapse / double-click to show main
+    MouseArea {
+        anchors.fill: parent
+        z: -1
+        visible: floatingWin.expanded
+        onClicked: floatingWin.expanded = false
+        onDoubleClicked: {
+            floatingWin.visible = false
+            appWindow.visible = true
         }
-    }
-
-    function show() {
-        floatingWin.visible = true
-    }
-
-    function hide() {
-        floatingWin.visible = false
     }
 }
