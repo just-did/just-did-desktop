@@ -27,8 +27,9 @@ public:
     // Returns empty body if 404
     struct FetchResponse {
         QByteArray body;
-        QString contentType;  // "text/plain", "application/zip", or empty if 404
-        bool notFound = true;
+        QString contentType;
+        int httpStatus = 404;   // 200, 400, or 404
+        QJsonObject errorJson;  // set when httpStatus != 200
     };
     FetchResponse fetch(const QJsonObject &request);
 

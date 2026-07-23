@@ -27,37 +27,52 @@ ErrorCode DataManager::addRecord(int year, int month, int day,
         expectedVersion = existing->version;
     }
 
-    // Append new record
+    // Append new record and sort
     DailyRecord newRec{time, content};
     records.append(newRec);
+    std::sort(records.begin(), records.end(), [](const DailyRecord &a, const DailyRecord &b) {
+        return a.time < b.time;
+    });
 
     // Build path
-    QString path = QString("%1/%2/%3.txt")
-                       .arg(year)
-                       .arg(month, 2, 10, QChar('0'))
-                       .arg(day, 2, 10, QChar('0'));
+    QString targetPath = QString("data/%1/%2/%3.txt")
+                             .arg(year)
+                             .arg(month, 2, 10, QChar('0'))
+                             .arg(day, 2, 10, QChar('0'));
+    QString tmpPath = targetPath + ".tmp";
 
-    // Write file first
-    if (!mFileMgr->writeDailyFile(year, month, day, records)) {
+    // Write to tmp file only (don't rename yet)
+    QDir().mkpath(QFileInfo(tmpPath).absolutePath());
+    QFile tmpFile(tmpPath);
+    if (!tmpFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
         return ErrorCode::StorageError;
     }
 
-    // Get file size
-    qint64 fileSize = QFile(path).size();
+    QStringList parts;
+    for (const auto &r : records) {
+        parts.append(r.time + "\n" + r.content);
+    }
+    QString fileContent = parts.join("\n\n") + "\n";
+    tmpFile.write(fileContent.toUtf8());
+    tmpFile.flush();
+    tmpFile.close();
+
+    qint64 fileSize = tmpFile.size();
 
     // Optimistic lock update
     if (existing.has_value()) {
-        if (!mDbMgr->updateWithVersion(year, month, day, path, fileSize, expectedVersion)) {
-            // Version conflict - rollback (re-read and rewrite original)
-            QFile::remove(path);
-            if (!records.isEmpty()) {
-                // Actually we should restore original, but conflict is rare
-            }
+        if (!mDbMgr->updateWithVersion(year, month, day, targetPath, fileSize, expectedVersion)) {
+            // Version conflict - discard tmp, original file untouched
+            QFile::remove(tmpPath);
             return ErrorCode::VersionConflict;
         }
     } else {
-        mDbMgr->upsertIndexEntry(year, month, day, path, fileSize);
+        mDbMgr->upsertIndexEntry(year, month, day, targetPath, fileSize);
     }
+
+    // Now safe to atomically replace the target file
+    QFile::remove(targetPath);
+    QFile::rename(tmpPath, targetPath);
 
     emit dataChanged(year, month, day);
     return ErrorCode::Success;
@@ -90,7 +105,7 @@ ErrorCode DataManager::mergeRecords(const QMap<QDate, QList<DailyRecord>> &recor
         op.year = year;
         op.month = month;
         op.day = day;
-        op.path = QString("%1/%2/%3.txt")
+        op.path = QString("data/%1/%2/%3.txt")
                       .arg(year)
                       .arg(month, 2, 10, QChar('0'))
                       .arg(day, 2, 10, QChar('0'));
@@ -217,16 +232,7 @@ QList<DailyRecord> DataManager::getDailyRecords(int year, int month, int day)
 bool DataManager::clearDate(int year, int month, int day)
 {
     mFileMgr->deleteDailyFile(year, month, day);
-
-    // Remove index entry
-    QSqlDatabase db = QSqlDatabase::database("justdid_connection");
-    QSqlQuery query(db);
-    query.prepare("DELETE FROM pc_daliy_report_index WHERE year=? AND month=? AND day=?");
-    query.addBindValue(year);
-    query.addBindValue(month);
-    query.addBindValue(day);
-    query.exec();
-
+    mDbMgr->removeIndexEntry(year, month, day);
     emit dataChanged(year, month, day);
     return true;
 }
@@ -239,6 +245,11 @@ bool DataManager::clearDateRange(const QDate &start, const QDate &end)
         d = d.addDays(1);
     }
     return true;
+}
+
+QJsonObject DataManager::getStorageStats()
+{
+    return mFileMgr->getStats();
 }
 
 DataManager::FetchResult DataManager::fetchFiles(const QList<QDate> &dates)

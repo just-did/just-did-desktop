@@ -19,10 +19,12 @@ public:
     bool start(int port);
     void stop();
     QString qrCodeUrl() const;
+    int connectionState() const;
 
 signals:
     void started(int port);
     void stopped();
+    void connectionStateChanged();
 
 private:
     void setupRoutes();

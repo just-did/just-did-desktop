@@ -1,22 +1,23 @@
 #include "ConnectionViewModel.h"
 #include "service/HttpServer.h"
-#include "core/ConnectionStateMachine.h"
-#include "common/Constants.h"
 
-ConnectionViewModel::ConnectionViewModel(HttpServer *server, ConnectionStateMachine *stateMachine,
-                                         QObject *parent)
-    : QObject(parent), mServer(server), mStateMachine(stateMachine), mPort(Constants::DEFAULT_PORT)
+ConnectionViewModel::ConnectionViewModel(HttpServer *server, QObject *parent)
+    : QObject(parent), mServer(server), mPort(18080)
 {
-    connect(mStateMachine, &ConnectionStateMachine::stateChanged,
-            this, &ConnectionViewModel::onStateChanged);
-    connect(mServer, &HttpServer::started, this, [this]() { emit qrCodeUrlChanged(); });
-    connect(mServer, &HttpServer::stopped, this, [this]() { emit qrCodeUrlChanged(); });
+    connect(mServer, &HttpServer::started, this, [this]() {
+        refreshState();
+        emit qrCodeUrlChanged();
+    });
+    connect(mServer, &HttpServer::stopped, this, [this]() {
+        refreshState();
+        emit qrCodeUrlChanged();
+    });
+    connect(mServer, &HttpServer::connectionStateChanged, this, [this]() {
+        refreshState();
+    });
 }
 
-int ConnectionViewModel::connectionState() const
-{
-    return static_cast<int>(mStateMachine->state());
-}
+int ConnectionViewModel::connectionState() const { return mState; }
 
 QString ConnectionViewModel::qrCodeUrl() const
 {
@@ -25,9 +26,7 @@ QString ConnectionViewModel::qrCodeUrl() const
 
 QString ConnectionViewModel::localIP() const
 {
-    // Extract IP from QR code URL
     QString url = mServer->qrCodeUrl();
-    // url is "http://IP:PORT", extract IP
     int start = url.indexOf("://") + 3;
     int end = url.lastIndexOf(':');
     if (start > 2 && end > start)
@@ -38,24 +37,15 @@ QString ConnectionViewModel::localIP() const
 int ConnectionViewModel::port() const { return mPort; }
 QString ConnectionViewModel::connectedDeviceName() const { return {}; }
 
-void ConnectionViewModel::startServer()
-{
-    mServer->start(mPort);
-}
+void ConnectionViewModel::startServer() { mServer->start(mPort); }
+void ConnectionViewModel::stopServer() { mServer->stop(); }
+void ConnectionViewModel::setPort(int port) { mPort = port; emit portChanged(); }
 
-void ConnectionViewModel::stopServer()
+void ConnectionViewModel::refreshState()
 {
-    mServer->stop();
-}
-
-void ConnectionViewModel::setPort(int port)
-{
-    mPort = port;
-    emit portChanged();
-}
-
-void ConnectionViewModel::onStateChanged()
-{
-    emit connectionStateChanged();
-    emit connectedDeviceNameChanged();
+    int newState = mServer->connectionState();
+    if (newState != mState) {
+        mState = newState;
+        emit connectionStateChanged();
+    }
 }

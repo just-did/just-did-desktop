@@ -4,7 +4,7 @@ add_subdirectory(core)
 add_subdirectory(service)
 add_subdirectory(ui)
 
-add_executable(JustDid
+add_executable(JustDid WIN32
     main.cpp
 )
 

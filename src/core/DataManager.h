@@ -32,6 +32,7 @@ public:
     // Management
     bool clearDate(int year, int month, int day);
     bool clearDateRange(const QDate &start, const QDate &end);
+    QJsonObject getStorageStats();
 
     struct FetchResult {
         bool notFound = true;

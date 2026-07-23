@@ -141,6 +141,16 @@ bool DatabaseManager::updateWithVersion(int year, int month, int day, const QStr
     return query.exec() && query.numRowsAffected() > 0;
 }
 
+void DatabaseManager::removeIndexEntry(int year, int month, int day)
+{
+    QSqlQuery query(mDb);
+    query.prepare("DELETE FROM pc_daliy_report_index WHERE year=? AND month=? AND day=?");
+    query.addBindValue(year);
+    query.addBindValue(month);
+    query.addBindValue(day);
+    query.exec();
+}
+
 bool DatabaseManager::isBatchProcessed(const QString &batchId)
 {
     QSqlQuery query(mDb);

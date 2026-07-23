@@ -22,6 +22,10 @@ HttpServer::~HttpServer()
 
 bool HttpServer::start(int port)
 {
+    // Clean up any previous listeners (fix S2: memory leak on double-start)
+    if (mServer) { delete mServer; mServer = nullptr; }
+    if (mTcpServer) { mTcpServer->close(); delete mTcpServer; mTcpServer = nullptr; }
+
     mPort = port;
     mTcpServer = new QTcpServer(this);
     mServer = new QHttpServer(this);
@@ -34,8 +38,18 @@ bool HttpServer::start(int port)
 
     mServer->bind(mTcpServer);
     mStateMachine->start();
+
+    // Forward state changes to ViewModel (through service layer)
+    connect(mStateMachine, &ConnectionStateMachine::stateChanged,
+            this, &HttpServer::connectionStateChanged, Qt::UniqueConnection);
+
     emit started(port);
     return true;
+}
+
+int HttpServer::connectionState() const
+{
+    return static_cast<int>(mStateMachine->state());
 }
 
 void HttpServer::stop()
@@ -128,13 +142,12 @@ void HttpServer::setupRoutes()
 
         auto fetchResp = mSyncService->fetch(doc.object());
 
-        if (fetchResp.notFound) {
-            QJsonObject err;
-            err["code"] = -1;
-            err["message"] = "文件不存在";
+        if (fetchResp.httpStatus != 200) {
+            auto sc = fetchResp.httpStatus == 400
+                ? QHttpServerResponse::StatusCode::BadRequest
+                : QHttpServerResponse::StatusCode::NotFound;
             return QHttpServerResponse("application/json",
-                                       QJsonDocument(err).toJson(QJsonDocument::Compact),
-                                       QHttpServerResponse::StatusCode::NotFound);
+                                       QJsonDocument(fetchResp.errorJson).toJson(QJsonDocument::Compact), sc);
         }
 
         return QHttpServerResponse(fetchResp.contentType.toUtf8(), fetchResp.body);

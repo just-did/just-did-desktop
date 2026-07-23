@@ -1,47 +1,42 @@
 import QtQuick
-import QtQuick.Controls
 
 Rectangle {
     id: root
     property string timeText: ""
     property string contentText: ""
-    height: rowLayout.implicitHeight + 12
+    height: 30
     color: "transparent"
 
     Row {
-        id: rowLayout
         anchors.left: parent.left
-        anchors.leftMargin: 12
+        anchors.leftMargin: 4
         anchors.verticalCenter: parent.verticalCenter
         anchors.right: parent.right
-        anchors.rightMargin: 12
-        spacing: 12
+        anchors.rightMargin: 4
+        spacing: 8
 
         Text {
             text: root.timeText
-            font.pixelSize: 13
+            font.pixelSize: 12
             font.bold: true
-            color: "#4A90D9"
-            width: 45
+            color: "#008cff"
+            width: 40
         }
 
         Text {
             text: root.contentText
-            font.pixelSize: 13
+            font.pixelSize: 12
             color: "#333"
-            wrapMode: Text.Wrap
+            elide: Text.ElideRight
             anchors.right: parent.right
-            leftPadding: 4
         }
     }
 
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
-        anchors.leftMargin: 12
         anchors.right: parent.right
-        anchors.rightMargin: 12
         height: 1
-        color: "#eee"
+        color: "#f0f0f0"
     }
 }

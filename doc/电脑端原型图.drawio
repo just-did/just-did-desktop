@@ -1,6 +1,6 @@
 <mxfile host="Electron">
   <diagram id="ZCpTAcJ09UrFBeqxMeC-" name="桌面端原型图">
-    <mxGraphModel dx="2054" dy="1243" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="1414" dy="883" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -31,7 +31,7 @@
         <mxCell id="1DS8D1TQsG4WQTVJY-YP-1" parent="1" style="strokeWidth=1;shadow=0;dashed=0;align=center;html=1;shape=mxgraph.mockup.buttons.button;strokeColor=#666666;fontColor=#ffffff;mainText=;buttonStyle=round;fontSize=17;fontStyle=1;fillColor=#008cff;whiteSpace=wrap;" value="提交" vertex="1">
           <mxGeometry height="50" width="80" x="489" y="660" as="geometry" />
         </mxCell>
-        <mxCell id="1DS8D1TQsG4WQTVJY-YP-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="" vertex="1">
+        <mxCell id="1DS8D1TQsG4WQTVJY-YP-3" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="默认展示今日日报，&lt;div&gt;当用户点击日历组件的日期时显示那天的日报&lt;/div&gt;" vertex="1">
           <mxGeometry height="250" width="360" x="60" y="390" as="geometry" />
         </mxCell>
         <mxCell id="1DS8D1TQsG4WQTVJY-YP-6" parent="1" style="strokeWidth=1;shadow=0;dashed=0;align=center;html=1;shape=mxgraph.mockup.forms.rrect;rSize=5;strokeColor=#999999;fillColor=#ffffff;" value="" vertex="1">

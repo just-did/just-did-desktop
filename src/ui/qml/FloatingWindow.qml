@@ -4,19 +4,34 @@ import QtQuick.Controls
 Window {
     id: floatingWin
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
+    color: "transparent"
     visible: false
     x: Screen.width - width - 20
     y: Screen.height / 2 - height / 2
 
     property bool expanded: false
+    property var mainWindow: null
+    property int clickCount: 0
 
-    // Collapsed size: 180x36, expanded size: 300x200
     width: 180
     height: 36
 
     onExpandedChanged: {
         if (expanded) { width = 300; height = 200 }
         else { width = 180; height = 36 }
+    }
+
+    // Double-click detection timer
+    Timer {
+        id: clickTimer
+        interval: 300
+        onTriggered: {
+            if (floatingWin.clickCount === 1) {
+                // Single click → expand
+                floatingWin.expanded = true
+            }
+            floatingWin.clickCount = 0
+        }
     }
 
     // Collapsed state
@@ -35,7 +50,20 @@ Window {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: floatingWin.expanded = true
+            onClicked: {
+                floatingWin.clickCount++
+                if (floatingWin.clickCount === 1) {
+                    clickTimer.start()
+                } else if (floatingWin.clickCount >= 2) {
+                    // Double click → back to main window
+                    clickTimer.stop()
+                    floatingWin.clickCount = 0
+                    floatingWin.visible = false
+                    if (floatingWin.mainWindow) {
+                        floatingWin.mainWindow.visible = true
+                    }
+                }
+            }
         }
     }
 
@@ -48,58 +76,44 @@ Window {
         border.width: 1
         visible: floatingWin.expanded
 
-        Column {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
+        Text {
+            anchors.top: parent.top
+            anchors.topMargin: 12
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "记录今天做了什么"
+            font.pixelSize: 13
+            font.bold: true
+        }
 
-            Text {
-                text: "记录今天做了什么"
-                font.pixelSize: 13
-                font.bold: true
-            }
+        TextArea {
+            id: inputArea
+            anchors.top: parent.top
+            anchors.topMargin: 36
+            anchors.left: parent.left
+            anchors.leftMargin: 12
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 12
+            placeholderText: "输入内容..."
+            wrapMode: TextArea.Wrap
+            focus: true
 
-            TextArea {
-                id: inputArea
-                width: parent.width - 24
-                height: 100
-                placeholderText: "输入内容..."
-                wrapMode: TextArea.Wrap
-            }
-
-            Row {
-                spacing: 8
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                Button {
-                    text: "提交"
-                    onClicked: {
-                        if (inputArea.text.trim() !== "") {
-                            floatingInputVM.inputText = inputArea.text
-                            floatingInputVM.submitRecord()
-                            inputArea.text = ""
-                            floatingWin.expanded = false
-                        }
-                    }
-                }
-
-                Button {
-                    text: "收起"
-                    onClicked: floatingWin.expanded = false
+            Keys.onReturnPressed: function(event) {
+                if (inputArea.text.trim() !== "") {
+                    floatingInputVM.inputText = inputArea.text
+                    floatingInputVM.submitRecord()
+                    inputArea.text = ""
+                    floatingWin.expanded = false
                 }
             }
         }
     }
 
-    // Click empty area to collapse / double-click to show main
-    MouseArea {
-        anchors.fill: parent
-        z: -1
-        visible: floatingWin.expanded
-        onClicked: floatingWin.expanded = false
-        onDoubleClicked: {
-            floatingWin.visible = false
-            appWindow.visible = true
+    // Click outside → collapse
+    onActiveChanged: {
+        if (!active && expanded) {
+            expanded = false
         }
     }
 }

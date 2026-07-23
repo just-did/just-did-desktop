@@ -37,6 +37,15 @@ void TimelineViewModel::clearSelectedDates(QVariantList dates)
 {
     for (const auto &v : dates) {
         QVariantMap m = v.toMap();
-        mReportService->clearDate(m["year"].toInt(), m["month"].toInt(), m["day"].toInt());
+        int y = m["year"].toInt();
+        int mo = m["month"].toInt();
+        int d = m["day"].toInt();
+        mReportService->clearDate(y, mo, d);
+    }
+    // If current selection was cleared, refresh the view
+    if (mYear && mMonth && mDay) {
+        auto remaining = mReportService->getDailyRecords(mYear, mMonth, mDay);
+        mRecordModel->setRecords(remaining);
+        emit hasContentChanged();
     }
 }

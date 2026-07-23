@@ -18,6 +18,8 @@ public:
     QList<IndexEntry> getIndexByMonth(int year, int month);
     bool updateWithVersion(int year, int month, int day, const QString &path, qint64 fileSize, int expectedVersion);
 
+    void removeIndexEntry(int year, int month, int day);
+
     bool isBatchProcessed(const QString &batchId);
     void insertBatch(const QString &batchId, const QString &dates);
     QStringList getBatchDates(const QString &batchId);

@@ -46,9 +46,7 @@ ErrorCode ReportService::clearDateRange(const QDate &start, const QDate &end)
 
 QJsonObject ReportService::getStorageStats()
 {
-    // Delegate to FileManager for filesystem traversal
-    // In practice this comes through DataManager
-    return {};
+    return mDataMgr->getStorageStats();
 }
 
 bool ReportService::backupToZip(const QList<QDate> &dates, const QString &outputPath)

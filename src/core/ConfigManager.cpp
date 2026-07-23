@@ -92,10 +92,10 @@ void ConfigManager::applyDefaults()
 }
 
 int ConfigManager::port() const { QMutexLocker lock(&mMutex); return mPort; }
-void ConfigManager::setPort(int port) { QMutexLocker lock(&mMutex); mPort = port; }
+void ConfigManager::setPort(int port) { QMutexLocker lock(&mMutex); mPort = port; save(); }
 int ConfigManager::heartbeatTimeout() const { QMutexLocker lock(&mMutex); return mHeartbeatTimeout; }
-void ConfigManager::setHeartbeatTimeout(int sec) { QMutexLocker lock(&mMutex); mHeartbeatTimeout = sec; }
+void ConfigManager::setHeartbeatTimeout(int sec) { QMutexLocker lock(&mMutex); mHeartbeatTimeout = sec; save(); }
 QPoint ConfigManager::floatingWindowPosition() const { QMutexLocker lock(&mMutex); return mFloatingWindowPos; }
-void ConfigManager::setFloatingWindowPosition(const QPoint &pos) { QMutexLocker lock(&mMutex); mFloatingWindowPos = pos; }
+void ConfigManager::setFloatingWindowPosition(const QPoint &pos) { QMutexLocker lock(&mMutex); mFloatingWindowPos = pos; save(); }
 QSize ConfigManager::mainWindowSize() const { QMutexLocker lock(&mMutex); return mMainWindowSize; }
-void ConfigManager::setMainWindowSize(const QSize &size) { QMutexLocker lock(&mMutex); mMainWindowSize = size; }
+void ConfigManager::setMainWindowSize(const QSize &size) { QMutexLocker lock(&mMutex); mMainWindowSize = size; save(); }

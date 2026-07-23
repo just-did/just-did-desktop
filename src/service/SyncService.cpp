@@ -10,7 +10,8 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDateTime>
-#include <QBuffer>
+#include <QTemporaryFile>
+#include <QSysInfo>
 
 SyncService::SyncService(DataManager *dataMgr, DatabaseManager *dbMgr,
                          ConnectionStateMachine *stateMachine)
@@ -193,14 +194,22 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
     QString errorMsg;
     QList<QDate> dates = parseDates(request, errorMsg);
     if (dates.isEmpty()) {
-        return resp; // notFound = true
+        resp.httpStatus = 400;
+        resp.errorJson["code"] = errorMsg.contains("超") ? -2 : -3;
+        resp.errorJson["message"] = errorMsg.isEmpty() ? "参数无效" : errorMsg;
+        return resp;
     }
 
     // Fetch files via DataManager
     auto fetchResult = mDataMgr->fetchFiles(dates);
     if (fetchResult.notFound) {
-        return resp; // notFound = true
+        resp.httpStatus = 404;
+        resp.errorJson["code"] = -1;
+        resp.errorJson["message"] = "文件不存在";
+        return resp;
     }
+
+    resp.httpStatus = 200;
 
     int count = fetchResult.files.size();
 
@@ -216,12 +225,27 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
 
         resp.body = content.toUtf8();
         resp.contentType = "text/plain; charset=utf-8";
-        resp.notFound = false;
+        resp.httpStatus = 200;
     } else {
-        // Multiple files: return as ZIP
-        QByteArray zipData;
-        QBuffer buffer(&zipData);
-        buffer.open(QIODevice::WriteOnly);
+        // Multiple files: return as ZIP using SimpleZipWriter (proper central directory)
+        QTemporaryFile tempFile;
+        tempFile.setAutoRemove(true);
+        if (!tempFile.open()) {
+            resp.httpStatus = 500;
+            resp.errorJson["code"] = 1;
+            resp.errorJson["message"] = "服务器内部错误";
+            return resp;
+        }
+        QString tempPath = tempFile.fileName();
+        tempFile.close();
+
+        SimpleZipWriter writer;
+        if (!writer.open(tempPath)) {
+            resp.httpStatus = 500;
+            resp.errorJson["code"] = 1;
+            resp.errorJson["message"] = "服务器内部错误";
+            return resp;
+        }
 
         for (auto it = fetchResult.files.begin(); it != fetchResult.files.end(); ++it) {
             QDate date = it.key();
@@ -241,44 +265,16 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
                 parts.append(r.time + "\n" + r.content);
             QString content = parts.join("\n\n") + "\n";
 
-            QByteArray contentBytes = content.toUtf8();
-            QByteArray entry;
-            QDataStream es(&entry, QIODevice::WriteOnly);
-            es.setByteOrder(QDataStream::LittleEndian);
-
-            quint16 mtime = (quint16)((QDateTime::currentSecsSinceEpoch() / 2) & 0xFFFF);
-            quint16 mdate = (quint16)(((QDate::currentDate().year() - 1980) << 9) |
-                                       (QDate::currentDate().month() << 5) |
-                                       QDate::currentDate().day());
-
-            es << (quint32)0x04034b50;
-            es << (quint16)20 << (quint16)0 << (quint16)0;
-            es << mtime << mdate;
-            es << qChecksum(contentBytes);
-            es << (quint32)contentBytes.size();
-            es << (quint32)contentBytes.size();
-            es << (quint16)entryPath.toUtf8().size();
-            es << (quint16)0;
-
-            buffer.write(entry);
-            buffer.write(entryPath.toUtf8());
-            buffer.write(contentBytes);
+            writer.addFile(entryPath, content.toUtf8());
         }
+        writer.close();
 
-        // End of central directory (empty central dir - minimal valid ZIP)
-        QByteArray eocd;
-        QDataStream eocs(&eocd, QIODevice::WriteOnly);
-        eocs.setByteOrder(QDataStream::LittleEndian);
-        eocs << (quint32)0x06054b50;
-        eocs << (quint16)0 << (quint16)0;
-        eocs << (quint16)0 << (quint16)0;
-        eocs << (quint32)0 << (quint32)0 << (quint16)0;
-        buffer.write(eocd);
-        buffer.close();
-
-        resp.body = zipData;
+        // Read back the temp file into response
+        tempFile.open();
+        resp.body = tempFile.readAll();
+        tempFile.close();
         resp.contentType = "application/zip";
-        resp.notFound = false;
+        resp.httpStatus = 200;
     }
 
     return resp;
@@ -297,7 +293,7 @@ QJsonObject SyncService::connectDevice(const QJsonObject &request)
 
     QJsonObject serverInfo;
     serverInfo["version"] = "1.0.0";
-    serverInfo["hostname"] = deviceName;
+    serverInfo["hostname"] = QSysInfo::machineHostName();
     resp["server_info"] = serverInfo;
 
     return resp;

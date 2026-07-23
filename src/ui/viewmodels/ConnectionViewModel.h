@@ -4,7 +4,6 @@
 #include <QString>
 
 class HttpServer;
-class ConnectionStateMachine;
 
 class ConnectionViewModel : public QObject
 {
@@ -16,8 +15,7 @@ class ConnectionViewModel : public QObject
     Q_PROPERTY(QString connectedDeviceName READ connectedDeviceName NOTIFY connectedDeviceNameChanged)
 
 public:
-    explicit ConnectionViewModel(HttpServer *server, ConnectionStateMachine *stateMachine,
-                                 QObject *parent = nullptr);
+    explicit ConnectionViewModel(HttpServer *server, QObject *parent = nullptr);
 
     int connectionState() const;
     QString qrCodeUrl() const;
@@ -36,11 +34,10 @@ signals:
     void portChanged();
     void connectedDeviceNameChanged();
 
-private slots:
-    void onStateChanged();
-
 private:
+    void refreshState();
+
     HttpServer *mServer;
-    ConnectionStateMachine *mStateMachine;
+    int mState = 0;
     int mPort = 18080;
 };
