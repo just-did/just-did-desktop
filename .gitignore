@@ -1,0 +1,13 @@
+.claude
+.vscode
+CLAUDE.md
+
+# Build
+build/
+
+# Runtime generated
+config.yml
+just_do.db
+logs/
+data/
+qt_debug.log
