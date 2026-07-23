@@ -4,34 +4,33 @@ import QtQuick.Controls
 ApplicationWindow {
     id: appWindow
     visible: true
-    width: 800
-    height: 600
-    title: "刚刚做了什么"
+    width: 550
+    height: 430
+    title: "Just Did"
 
-    // Main window and floating window visibility
-    property bool mainWindowVisible: true
+    // X button → quit. Minimize (-) → show floating window
+    onClosing: Qt.quit()
+
+    Timer {
+        id: minimizeTimer
+        interval: 0
+        onTriggered: {
+            appWindow.visible = false
+            floatingWindow.show()
+        }
+    }
+
+    onVisibilityChanged: {
+        if (appWindow.visibility === Window.Minimized) {
+            minimizeTimer.start()
+        }
+    }
 
     MainWindow {
-        id: mainWindow
-        visible: appWindow.mainWindowVisible
         anchors.fill: parent
     }
 
     FloatingWindow {
         id: floatingWindow
-        visible: !appWindow.mainWindowVisible
-    }
-
-    Connections {
-        target: floatingInputVM
-        function onRequestShowMainWindow() {
-            appWindow.mainWindowVisible = true
-        }
-    }
-
-    // Close to tray instead of quitting
-    onClosing: function(close) {
-        close.accepted = false
-        appWindow.mainWindowVisible = false
     }
 }

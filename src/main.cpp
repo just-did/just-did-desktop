@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
 
     // Create ViewModels
     CalendarViewModel calendarVM(&reportService);
-    TimelineViewModel timelineVM(&reportService);
+    TimelineViewModel timelineVM(&reportService, &recordListModel);
     FloatingInputViewModel floatingInputVM(&reportService);
     StorageViewModel storageVM(&reportService);
     ConnectionViewModel connectionVM(&httpServer, appCore->connectionStateMachine());
@@ -74,11 +74,6 @@ int main(int argc, char *argv[])
                 days.append(m["day"].toInt());
         }
         calendarModel.setMonthData(calendarVM.currentYear(), calendarVM.currentMonth(), days);
-    });
-
-    // Sync timeline data when records change
-    QObject::connect(&timelineVM, &TimelineViewModel::recordsChanged, [&]() {
-        // Records are converted to QVariantList in the VM
     });
 
     // Load initial data

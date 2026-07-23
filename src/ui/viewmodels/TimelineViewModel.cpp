@@ -1,14 +1,15 @@
 #include "TimelineViewModel.h"
 #include "service/ReportService.h"
+#include "ui/models/RecordListModel.h"
 
-TimelineViewModel::TimelineViewModel(ReportService *reportService, QObject *parent)
-    : QObject(parent), mReportService(reportService) {}
+TimelineViewModel::TimelineViewModel(ReportService *reportService, RecordListModel *recordModel,
+                                     QObject *parent)
+    : QObject(parent), mReportService(reportService), mRecordModel(recordModel) {}
 
 int TimelineViewModel::selectedYear() const { return mYear; }
 int TimelineViewModel::selectedMonth() const { return mMonth; }
 int TimelineViewModel::selectedDay() const { return mDay; }
-QVariantList TimelineViewModel::records() const { return mRecords; }
-bool TimelineViewModel::hasContent() const { return !mRecords.isEmpty(); }
+bool TimelineViewModel::hasContent() const { return mRecordModel->rowCount() > 0; }
 
 void TimelineViewModel::selectDate(int year, int month, int day)
 {
@@ -17,16 +18,9 @@ void TimelineViewModel::selectDate(int year, int month, int day)
     mDay = day;
 
     auto records = mReportService->getDailyRecords(year, month, day);
-    mRecords.clear();
-    for (const auto &r : records) {
-        QVariantMap item;
-        item["time"] = r.time;
-        item["content"] = r.content;
-        mRecords.append(item);
-    }
+    mRecordModel->setRecords(records);
 
     emit selectedDateChanged();
-    emit recordsChanged();
     emit hasContentChanged();
 }
 
@@ -34,8 +28,7 @@ void TimelineViewModel::clearSelectedDate()
 {
     if (mYear && mMonth && mDay) {
         mReportService->clearDate(mYear, mMonth, mDay);
-        mRecords.clear();
-        emit recordsChanged();
+        mRecordModel->setRecords({});
         emit hasContentChanged();
     }
 }

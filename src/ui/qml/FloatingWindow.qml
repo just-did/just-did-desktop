@@ -4,16 +4,20 @@ import QtQuick.Controls
 Window {
     id: floatingWin
     flags: Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
-    visible: true
+    visible: false
     x: Screen.width - width - 20
     y: Screen.height / 2 - height / 2
 
-    property bool expanded: floatingInputVM.isExpanded
+    property bool expanded: false
+
+    // Bind size to expanded state
+    width: expanded ? 300 : 180
+    height: expanded ? 200 : 36
 
     // Collapsed state
     Rectangle {
         id: collapsedState
-        width: 180; height: 36
+        anchors.fill: parent
         color: "#4A90D9"
         radius: 8
         visible: !floatingWin.expanded
@@ -27,14 +31,14 @@ Window {
 
         MouseArea {
             anchors.fill: parent
-            onClicked: floatingInputVM.toggleExpand()
+            onClicked: floatingWin.expanded = true
         }
     }
 
     // Expanded state
     Rectangle {
         id: expandedState
-        width: 300; height: 200
+        anchors.fill: parent
         color: "white"
         radius: 8
         border.color: "#4A90D9"
@@ -54,10 +58,8 @@ Window {
 
             TextArea {
                 id: inputArea
-                width: parent.width
+                width: parent.width - 24
                 height: 100
-                text: floatingInputVM.inputText
-                onTextChanged: floatingInputVM.inputText = text
                 placeholderText: "输入内容..."
                 wrapMode: TextArea.Wrap
             }
@@ -68,32 +70,40 @@ Window {
 
                 Button {
                     text: "提交"
-                    onClicked: floatingInputVM.submitRecord()
+                    onClicked: {
+                        if (inputArea.text.trim() !== "") {
+                            floatingInputVM.inputText = inputArea.text
+                            floatingInputVM.submitRecord()
+                            inputArea.text = ""
+                            floatingWin.expanded = false
+                        }
+                    }
                 }
 
                 Button {
                     text: "收起"
-                    onClicked: floatingInputVM.toggleExpand()
+                    onClicked: floatingWin.expanded = false
                 }
             }
         }
 
-        // Double-click to show main window
+        // Click blank area to collapse
         MouseArea {
             anchors.fill: parent
             z: -1
-            onDoubleClicked: floatingInputVM.showMainWindow()
+            onClicked: floatingWin.expanded = false
+            onDoubleClicked: {
+                floatingWin.hide()
+                appWindow.visible = true
+            }
         }
     }
 
-    // Bind size to expanded state
-    width: floatingWin.expanded ? 300 : 180
-    height: floatingWin.expanded ? 200 : 36
+    function show() {
+        floatingWin.visible = true
+    }
 
-    Connections {
-        target: floatingInputVM
-        function onRecordSubmitted() {
-            // Feedback handled in QML
-        }
+    function hide() {
+        floatingWin.visible = false
     }
 }
