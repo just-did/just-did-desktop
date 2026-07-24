@@ -52,10 +52,11 @@ Rectangle {
 
                         ScrollBar.vertical: ScrollBar {
                             policy: ScrollBar.AsNeeded
+                            width: 4
                         }
 
                         delegate: RecordItem {
-                            width: listView.width
+                            width: listView.width - 9
                             timeText: time
                             contentText: content
                         }
@@ -281,14 +282,15 @@ Rectangle {
                                 source: "image://qrcode/current?v=" + connectionVM.qrVersion
                                 cache: false
                                 fillMode: Image.PreserveAspectFit
+                                visible: connectionVM.connectionState > 0
                             }
 
                             Text {
                                 anchors.centerIn: parent
-                                text: "QR"
+                                text: "二维码"
                                 font.pixelSize: 12
                                 color: "#ccc"
-                                visible: connectionVM.connectionState < 1
+                                visible: connectionVM.connectionState === 0
                             }
                         }
 

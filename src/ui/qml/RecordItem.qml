@@ -4,38 +4,40 @@ Rectangle {
     id: root
     property string timeText: ""
     property string contentText: ""
-    height: 30
+    height: column.implicitHeight + 12
     color: "transparent"
 
-    Row {
+    Column {
+        id: column
         anchors.left: parent.left
-        anchors.leftMargin: 4
+        anchors.leftMargin: 12
         anchors.verticalCenter: parent.verticalCenter
         anchors.right: parent.right
-        anchors.rightMargin: 4
-        spacing: 8
+        anchors.rightMargin: 12
+        spacing: 2
 
         Text {
             text: root.timeText
-            font.pixelSize: 12
+            font.pixelSize: 11
             font.bold: true
-            color: "#008cff"
-            width: 40
+            color: "#888"
         }
 
         Text {
             text: root.contentText
-            font.pixelSize: 12
+            font.pixelSize: 13
             color: "#333"
-            elide: Text.ElideRight
-            anchors.right: parent.right
+            wrapMode: Text.Wrap
+            width: column.width
         }
     }
 
     Rectangle {
         anchors.bottom: parent.bottom
         anchors.left: parent.left
+        anchors.leftMargin: 12
         anchors.right: parent.right
+        anchors.rightMargin: 12
         height: 1
         color: "#f0f0f0"
     }
