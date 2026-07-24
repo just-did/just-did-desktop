@@ -36,9 +36,7 @@ Rectangle {
                     // Date header
                     Text {
                         id: dateHeader
-                        text: timelineVM.hasContent
-                              ? (timelineVM.selectedYear + "年" + timelineVM.selectedMonth + "月" + timelineVM.selectedDay + "日")
-                              : "今天暂无记录"
+                        text: timelineVM.selectedYear + "年" + timelineVM.selectedMonth + "月" + timelineVM.selectedDay + "日"
                         font.pixelSize: 13
                         font.bold: true
                         color: "#333"
@@ -109,11 +107,13 @@ Rectangle {
                             Text {
                                 text: ">"
                                 font.pixelSize: 14; font.bold: true
-                                color: "#008cff"
+                                color: calendarVM.canGoNext ? "#008cff" : "#ccc"
                                 MouseArea {
                                     anchors.fill: parent
                                     anchors.margins: -4
-                                    onClicked: calendarVM.nextMonth()
+                                    onClicked: {
+                                        if (calendarVM.canGoNext) calendarVM.nextMonth()
+                                    }
                                 }
                             }
                         }
@@ -150,19 +150,30 @@ Rectangle {
                                 width: 19; height: 19
                                 radius: 2
                                 color: {
-                                    if (hasReport && isCurrentMonth) return "#ddeeff"
-                                    if (isCurrentMonth) return "#f5f5f5"
+                                    if (!isCurrentMonth) return "transparent"
+                                    if (isToday) return "#1a73e8"
+                                    if (isFuture) return "#f0f0f0"
+                                    if (hasReport) return "#ddeeff"
+                                    return "#f5f5f5"
+                                }
+                                border.color: {
+                                    if (isSelected && isCurrentMonth && !isFuture) return "#008cff"
                                     return "transparent"
                                 }
-                                border.color: hasReport && isCurrentMonth ? "#008cff" : "transparent"
-                                border.width: hasReport && isCurrentMonth ? 1 : 0
+                                border.width: isSelected && isCurrentMonth && !isFuture ? 1.5 : 0
 
                                 Text {
                                     anchors.centerIn: parent
                                     text: dayNumber
-                                    color: hasReport && isCurrentMonth ? "#008cff" : (isCurrentMonth ? "#333" : "#ccc")
+                                    color: {
+                                        if (!isCurrentMonth) return "#ccc"
+                                        if (isToday) return "#ffffff"
+                                        if (isFuture) return "#bbb"
+                                        if (hasReport) return "#008cff"
+                                        return "#333"
+                                    }
                                     font.pixelSize: 10
-                                    font.bold: hasReport && isCurrentMonth
+                                    font.bold: isToday || (hasReport && isCurrentMonth && !isFuture)
                                 }
 
                                 MouseArea {

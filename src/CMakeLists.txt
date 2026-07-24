@@ -20,3 +20,11 @@ target_link_libraries(JustDid PRIVATE
     Qt6::HttpServer
     yaml-cpp::yaml-cpp
 )
+
+# Copy QML files to build output after each build
+add_custom_command(TARGET JustDid POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+        "${CMAKE_SOURCE_DIR}/src/ui/qml"
+        "$<TARGET_FILE_DIR:JustDid>/qml"
+    COMMENT "Copying QML files to output directory"
+)

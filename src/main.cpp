@@ -92,7 +92,27 @@ int main(int argc, char *argv[])
             if (m["hasReport"].toBool())
                 days.append(m["day"].toInt());
         }
-        calendarModel.setMonthData(calendarVM.currentYear(), calendarVM.currentMonth(), days);
+        QDate today = QDate::currentDate();
+        calendarModel.setMonthData(calendarVM.currentYear(), calendarVM.currentMonth(), days,
+                                   today.year(), today.month(), today.day(),
+                                   calendarVM.selectedYear(), calendarVM.selectedMonth(), calendarVM.selectedDay());
+    });
+
+    // Sync calendar selection highlight when selected date changes
+    QObject::connect(&calendarVM, &CalendarViewModel::selectedDateChanged, [&]() {
+        calendarModel.setSelectedDate(calendarVM.selectedYear(), calendarVM.selectedMonth(), calendarVM.selectedDay());
+    });
+
+    // Sync calendar selection when timeline date changes
+    QObject::connect(&timelineVM, &TimelineViewModel::selectedDateChanged, [&]() {
+        calendarVM.setSelectedDate(timelineVM.selectedYear(), timelineVM.selectedMonth(), timelineVM.selectedDay());
+    });
+
+    // After submitting a record, navigate to today
+    QObject::connect(&floatingInputVM, &FloatingInputViewModel::recordSubmitted, [&]() {
+        QDate today = QDate::currentDate();
+        calendarVM.loadMonth(today.year(), today.month());
+        timelineVM.selectDate(today.year(), today.month(), today.day());
     });
 
     // Load initial data

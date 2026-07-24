@@ -7,11 +7,25 @@ CalendarViewModel::CalendarViewModel(ReportService *reportService, QObject *pare
     QDate today = QDate::currentDate();
     mYear = today.year();
     mMonth = today.month();
+    mSelectedYear = today.year();
+    mSelectedMonth = today.month();
+    mSelectedDay = today.day();
 }
 
 int CalendarViewModel::currentYear() const { return mYear; }
 int CalendarViewModel::currentMonth() const { return mMonth; }
 QVariantList CalendarViewModel::markedDays() const { return mMarkedDays; }
+int CalendarViewModel::selectedYear() const { return mSelectedYear; }
+int CalendarViewModel::selectedMonth() const { return mSelectedMonth; }
+int CalendarViewModel::selectedDay() const { return mSelectedDay; }
+
+bool CalendarViewModel::canGoNext() const
+{
+    QDate today = QDate::currentDate();
+    QDate currentFirst(mYear, mMonth, 1);
+    QDate todayFirst(today.year(), today.month(), 1);
+    return currentFirst < todayFirst;
+}
 
 void CalendarViewModel::loadMonth(int year, int month)
 {
@@ -44,4 +58,15 @@ void CalendarViewModel::refresh()
     }
     emit currentMonthChanged();
     emit markedDaysChanged();
+}
+
+void CalendarViewModel::setSelectedDate(int year, int month, int day)
+{
+    if (mSelectedYear == year && mSelectedMonth == month && mSelectedDay == day)
+        return;
+
+    mSelectedYear = year;
+    mSelectedMonth = month;
+    mSelectedDay = day;
+    emit selectedDateChanged();
 }
