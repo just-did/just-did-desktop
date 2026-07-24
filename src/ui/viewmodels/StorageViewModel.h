@@ -10,12 +10,16 @@ class StorageViewModel : public QObject
     Q_OBJECT
     Q_PROPERTY(qint64 totalSize READ totalSize NOTIFY statsChanged)
     Q_PROPERTY(QVariantList statsByYear READ statsByYear NOTIFY statsChanged)
+    Q_PROPERTY(QString totalSizeText READ totalSizeText NOTIFY statsChanged)
+    Q_PROPERTY(double usageRatio READ usageRatio NOTIFY statsChanged)
 
 public:
     explicit StorageViewModel(ReportService *reportService, QObject *parent = nullptr);
 
     qint64 totalSize() const;
     QVariantList statsByYear() const;
+    QString totalSizeText() const;
+    double usageRatio() const;
 
     Q_INVOKABLE void refreshStats();
     Q_INVOKABLE void clearDateRange(int startYear, int startMonth, int startDay,

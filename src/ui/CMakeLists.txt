@@ -6,6 +6,8 @@ add_library(justdid_ui STATIC
     viewmodels/ConnectionViewModel.cpp
     models/CalendarModel.cpp
     models/RecordListModel.cpp
+    QRCodeProvider.cpp
+    qrcodegen.cpp
 )
 
 target_link_libraries(justdid_ui PUBLIC

@@ -4,7 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
-#include <QDateTime>
+#include <QDate>
 #include <QQuickWindow>
 #include <QTimer>
 
@@ -19,6 +19,7 @@
 #include "ui/viewmodels/ConnectionViewModel.h"
 #include "ui/models/CalendarModel.h"
 #include "ui/models/RecordListModel.h"
+#include "ui/QRCodeProvider.h"
 
 // Global pointer for Qt message handler (must be accessible without capture)
 static QFile *g_debugLog = nullptr;
@@ -34,9 +35,6 @@ static void debugMessageHandler(QtMsgType, const QMessageLogContext &, const QSt
 
 int main(int argc, char *argv[])
 {
-    // Prevent black window flash on startup
-    QQuickWindow::setDefaultAlphaBuffer(true);
-
     QGuiApplication app(argc, argv);
     app.setQuitOnLastWindowClosed(false);
 
@@ -61,10 +59,14 @@ int main(int argc, char *argv[])
     TimelineViewModel timelineVM(&reportService, &recordListModel);
     FloatingInputViewModel floatingInputVM(&reportService);
     StorageViewModel storageVM(&reportService);
-    ConnectionViewModel connectionVM(&httpServer);
+    // QR code image provider
+    QRCodeProvider *qrProvider = new QRCodeProvider();
+
+    ConnectionViewModel connectionVM(&httpServer, qrProvider);
 
     // QML engine
     QQmlApplicationEngine engine;
+    engine.addImageProvider("qrcode", qrProvider);
 
     // Find QML directory relative to executable
     QString qmlDir = QCoreApplication::applicationDirPath() + "/qml";
@@ -95,9 +97,14 @@ int main(int argc, char *argv[])
 
     // Load initial data
     calendarVM.loadMonth(calendarVM.currentYear(), calendarVM.currentMonth());
+    // Default to showing today's report
+    QDate today = QDate::currentDate();
+    timelineVM.selectDate(today.year(), today.month(), today.day());
+    storageVM.refreshStats();
 
     // Redirect Qt messages to file for debugging
-    g_debugLog = new QFile("qt_debug.log");
+    QString logPath = QCoreApplication::applicationDirPath() + "/qt_debug.log";
+    g_debugLog = new QFile(logPath);
     g_debugLog->open(QIODevice::WriteOnly | QIODevice::Truncate);
     qInstallMessageHandler(debugMessageHandler);
 

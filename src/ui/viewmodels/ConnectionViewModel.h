@@ -4,21 +4,25 @@
 #include <QString>
 
 class HttpServer;
+class QRCodeProvider;
 
 class ConnectionViewModel : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(int connectionState READ connectionState NOTIFY connectionStateChanged)
     Q_PROPERTY(QString qrCodeUrl READ qrCodeUrl NOTIFY qrCodeUrlChanged)
+    Q_PROPERTY(int qrVersion READ qrVersion NOTIFY qrCodeUrlChanged)
     Q_PROPERTY(QString localIP READ localIP NOTIFY qrCodeUrlChanged)
     Q_PROPERTY(int port READ port NOTIFY portChanged)
     Q_PROPERTY(QString connectedDeviceName READ connectedDeviceName NOTIFY connectedDeviceNameChanged)
 
 public:
-    explicit ConnectionViewModel(HttpServer *server, QObject *parent = nullptr);
+    explicit ConnectionViewModel(HttpServer *server, QRCodeProvider *qrProvider = nullptr,
+                                 QObject *parent = nullptr);
 
     int connectionState() const;
     QString qrCodeUrl() const;
+    int qrVersion() const;
     QString localIP() const;
     int port() const;
     QString connectedDeviceName() const;
@@ -38,6 +42,7 @@ private:
     void refreshState();
 
     HttpServer *mServer;
+    QRCodeProvider *mQRProvider = nullptr;
     int mState = 0;
     int mPort = 18080;
 };

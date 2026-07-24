@@ -1,6 +1,7 @@
 #include "HttpServer.h"
 #include "SyncService.h"
 #include "core/ConnectionStateMachine.h"
+#include "core/LogManager.h"
 
 #include <QHttpServer>
 #include <QTcpServer>
@@ -22,6 +23,8 @@ HttpServer::~HttpServer()
 
 bool HttpServer::start(int port)
 {
+    LogManager::instance()->info(QString("[HttpServer] 启动 HTTP 服务, 端口=%1 ...").arg(port));
+
     // Clean up any previous listeners (fix S2: memory leak on double-start)
     if (mServer) { delete mServer; mServer = nullptr; }
     if (mTcpServer) { mTcpServer->close(); delete mTcpServer; mTcpServer = nullptr; }
@@ -33,6 +36,8 @@ bool HttpServer::start(int port)
     setupRoutes();
 
     if (!mTcpServer->listen(QHostAddress::Any, port)) {
+        QString err = mTcpServer->errorString();
+        LogManager::instance()->error(QString("[HttpServer] 监听端口 %1 失败: %2").arg(port).arg(err));
         return false;
     }
 
@@ -42,6 +47,11 @@ bool HttpServer::start(int port)
     // Forward state changes to ViewModel (through service layer)
     connect(mStateMachine, &ConnectionStateMachine::stateChanged,
             this, &HttpServer::connectionStateChanged, Qt::UniqueConnection);
+
+    // Log server info
+    QString localIP = getLocalIP();
+    QString qrUrl = QString("http://%1:%2").arg(localIP).arg(port);
+    LogManager::instance()->info(QString("[HttpServer] HTTP 服务启动成功: %1").arg(qrUrl));
 
     emit started(port);
     return true;

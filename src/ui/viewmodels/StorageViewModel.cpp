@@ -7,6 +7,20 @@ StorageViewModel::StorageViewModel(ReportService *reportService, QObject *parent
 qint64 StorageViewModel::totalSize() const { return mTotalSize; }
 QVariantList StorageViewModel::statsByYear() const { return mStatsByYear; }
 
+QString StorageViewModel::totalSizeText() const
+{
+    if (mTotalSize < 1024) return QString::number(mTotalSize) + " B";
+    if (mTotalSize < 1024 * 1024) return QString::number(mTotalSize / 1024) + " KB";
+    return QString::number(mTotalSize / (1024 * 1024)) + " MB";
+}
+
+double StorageViewModel::usageRatio() const
+{
+    // Max threshold: 100 MB
+    constexpr qint64 kMaxSize = 100 * 1024 * 1024;
+    return qMin(static_cast<double>(mTotalSize) / kMaxSize, 1.0);
+}
+
 void StorageViewModel::refreshStats()
 {
     auto stats = mReportService->getStorageStats();
