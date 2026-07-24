@@ -1,6 +1,7 @@
 .claude
 .vscode
 CLAUDE.md
+openspec/
 
 # Build
 build/
