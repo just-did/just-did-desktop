@@ -60,6 +60,15 @@ Rectangle {
                             contentText: content
                         }
                     }
+
+                    // Empty state hint
+                    Text {
+                        anchors.centerIn: listView
+                        text: "当前日期没有记录"
+                        visible: listView.count === 0
+                        color: "#999"
+                        font.pixelSize: 13
+                    }
                 }
             }
 
@@ -153,7 +162,6 @@ Rectangle {
                                     if (!isCurrentMonth) return "transparent"
                                     if (isToday) return "#1a73e8"
                                     if (isFuture) return "#f0f0f0"
-                                    if (hasReport) return "#ddeeff"
                                     return "#f5f5f5"
                                 }
                                 border.color: {
@@ -162,6 +170,18 @@ Rectangle {
                                 }
                                 border.width: isSelected && isCurrentMonth && !isFuture ? 1.5 : 0
 
+                                // Green dot indicator for dates with reports
+                                Rectangle {
+                                    width: 5; height: 5
+                                    radius: 2.5
+                                    color: "#4CAF50"
+                                    anchors.top: parent.top
+                                    anchors.left: parent.left
+                                    anchors.topMargin: 1
+                                    anchors.leftMargin: 1
+                                    visible: hasReport && isCurrentMonth
+                                }
+
                                 Text {
                                     anchors.centerIn: parent
                                     text: dayNumber
@@ -169,11 +189,10 @@ Rectangle {
                                         if (!isCurrentMonth) return "#ccc"
                                         if (isToday) return "#ffffff"
                                         if (isFuture) return "#bbb"
-                                        if (hasReport) return "#008cff"
                                         return "#333"
                                     }
                                     font.pixelSize: 10
-                                    font.bold: isToday || (hasReport && isCurrentMonth && !isFuture)
+                                    font.bold: isToday
                                 }
 
                                 MouseArea {
