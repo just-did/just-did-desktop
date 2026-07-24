@@ -25,9 +25,10 @@ bool HttpServer::start(int port)
 {
     LogManager::instance()->info(QString("[HttpServer] 启动 HTTP 服务, 端口=%1 ...").arg(port));
 
-    // Clean up any previous listeners (fix S2: memory leak on double-start)
-    if (mServer) { delete mServer; mServer = nullptr; }
-    if (mTcpServer) { mTcpServer->close(); delete mTcpServer; mTcpServer = nullptr; }
+    // Clean up any previous listeners (use deleteLater to avoid crash during signal chains)
+    if (mTcpServer) { mTcpServer->close(); }
+    if (mServer) { mServer->deleteLater(); mServer = nullptr; }
+    if (mTcpServer) { mTcpServer->deleteLater(); mTcpServer = nullptr; }
 
     mPort = port;
     mTcpServer = new QTcpServer(this);
@@ -64,17 +65,38 @@ int HttpServer::connectionState() const
 
 void HttpServer::stop()
 {
-    if (mServer) {
-        delete mServer;
-        mServer = nullptr;
-    }
+    LogManager::instance()->info("[HttpServer] stop() 开始");
+
+    // 先关闭 TCP 监听，阻止新连接到达
     if (mTcpServer) {
+        LogManager::instance()->info("[HttpServer] stop() - 关闭 QTcpServer 监听...");
         mTcpServer->close();
-        delete mTcpServer;
-        mTcpServer = nullptr;
+        LogManager::instance()->info("[HttpServer] stop() - QTcpServer 监听已关闭");
     }
+
+    // 使用 deleteLater 延迟销毁，避免在信号链中直接 delete 导致崩溃
+    // QHttpServer 和 QTcpServer 内部有事件队列交互，需要事件循环处理完再释放
+    if (mServer) {
+        LogManager::instance()->info("[HttpServer] stop() - 延迟销毁 QHttpServer...");
+        mServer->deleteLater();
+        mServer = nullptr;
+        LogManager::instance()->info("[HttpServer] stop() - QHttpServer 已标记删除");
+    }
+
+    if (mTcpServer) {
+        LogManager::instance()->info("[HttpServer] stop() - 延迟销毁 QTcpServer...");
+        mTcpServer->deleteLater();
+        mTcpServer = nullptr;
+        LogManager::instance()->info("[HttpServer] stop() - QTcpServer 已标记删除");
+    }
+
+    LogManager::instance()->info("[HttpServer] stop() - 停止状态机...");
     mStateMachine->stop();
+    LogManager::instance()->info("[HttpServer] stop() - 状态机已停止");
+
+    LogManager::instance()->info("[HttpServer] stop() - 发送 stopped 信号...");
     emit stopped();
+    LogManager::instance()->info("[HttpServer] stop() 完成");
 }
 
 void HttpServer::setupRoutes()
