@@ -36,7 +36,7 @@ bool HttpServer::start(int port)
 
     setupRoutes();
 
-    if (!mTcpServer->listen(QHostAddress::Any, port)) {
+    if (!mTcpServer->listen(QHostAddress::AnyIPv4, port)) {
         QString err = mTcpServer->errorString();
         LogManager::instance()->error(QString("[HttpServer] 监听端口 %1 失败: %2").arg(port).arg(err));
         return false;
@@ -186,9 +186,49 @@ void HttpServer::setupRoutes()
     });
 }
 
+static bool isVirtualAdapter(const QNetworkInterface &iface)
+{
+    static const QStringList keywords = {
+        "VMware", "VirtualBox", "Hyper-V", "vEthernet",
+        "Docker", "WSL", "Virtual", "TAP", "Tunnel", "VPN",
+        "Bluetooth", "Loopback"
+    };
+    const QString hrName = iface.humanReadableName();
+    const QString name = iface.name();
+    for (const auto &kw : keywords) {
+        if (hrName.contains(kw, Qt::CaseInsensitive) ||
+            name.contains(kw, Qt::CaseInsensitive)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QString HttpServer::getLocalIP() const
 {
     const auto interfaces = QNetworkInterface::allInterfaces();
+
+    // First pass: prefer physical adapters that are up and running
+    for (const auto &iface : interfaces) {
+        if (iface.flags().testFlag(QNetworkInterface::IsLoopBack))
+            continue;
+        if (!iface.flags().testFlag(QNetworkInterface::IsUp) ||
+            !iface.flags().testFlag(QNetworkInterface::IsRunning))
+            continue;
+        if (isVirtualAdapter(iface))
+            continue;
+
+        const auto entries = iface.addressEntries();
+        for (const auto &entry : entries) {
+            QHostAddress addr = entry.ip();
+            if (addr.protocol() == QAbstractSocket::IPv4Protocol &&
+                !addr.isLoopback()) {
+                return addr.toString();
+            }
+        }
+    }
+
+    // Fallback: if all filtered out, return any available non-loopback IPv4
     for (const auto &iface : interfaces) {
         if (iface.flags().testFlag(QNetworkInterface::IsUp) &&
             !iface.flags().testFlag(QNetworkInterface::IsLoopBack)) {
