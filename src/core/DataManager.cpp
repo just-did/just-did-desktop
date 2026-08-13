@@ -1,6 +1,7 @@
 #include "DataManager.h"
 #include "FileManager.h"
 #include "DatabaseManager.h"
+#include "common/Constants.h"
 
 #include <QFile>
 #include <QFileInfo>
@@ -81,125 +82,87 @@ ErrorCode DataManager::addRecord(int year, int month, int day,
 ErrorCode DataManager::mergeRecords(const QMap<QDate, QList<DailyRecord>> &recordsByDate,
                                      const QString &batchId)
 {
-    // Check idempotency
-    if (mDbMgr->isBatchProcessed(batchId)) {
+    // 已完成 → 幂等，不重复处理
+    QString status = mDbMgr->getBatchStatus(batchId);
+    if (status == Constants::BATCH_STATUS_DONE) {
         return ErrorCode::Success;
     }
 
-    // Build date list for batch record
-    QStringList dateStrs;
-    struct DateOp {
-        int year, month, day;
-        QString path;
-        QList<DailyRecord> newRecords;
-        int expectedVersion;
-        bool exists;
-    };
-    QList<DateOp> ops;
-
-    for (auto it = recordsByDate.begin(); it != recordsByDate.end(); ++it) {
-        QDate date = it.key();
-        int year = date.year(), month = date.month(), day = date.day();
-
-        DateOp op;
-        op.year = year;
-        op.month = month;
-        op.day = day;
-        op.path = QString("data/%1/%2/%3.txt")
-                      .arg(year)
-                      .arg(month, 2, 10, QChar('0'))
-                      .arg(day, 2, 10, QChar('0'));
-
-        // Read existing
-        QList<DailyRecord> existing = mFileMgr->readDailyFile(year, month, day);
-
-        // Get version
-        auto indexEntry = mDbMgr->getIndexEntry(year, month, day);
-        op.exists = indexEntry.has_value();
-        op.expectedVersion = op.exists ? indexEntry->version : 1;
-
-        // Merge and sort
-        existing.append(it.value());
-        op.newRecords = existing;
-
-        dateStrs.append(date.toString("yyyyMMdd"));
-        ops.append(op);
+    // 确定受影响日期：覆盖中续跑以记录为准，新批次以请求数据为准
+    QList<QDate> dates;
+    if (status == Constants::BATCH_STATUS_COVERING) {
+        const QStringList dateStrs = mDbMgr->getBatchDates(batchId);
+        for (const auto &ds : dateStrs) {
+            QDate d = QDate::fromString(ds, "yyyyMMdd");
+            if (d.isValid()) dates.append(d);
+        }
+    } else {
+        dates = recordsByDate.keys();
     }
 
-    // Start transaction
-    QSqlDatabase db = QSqlDatabase::database("justdid_connection");
-    db.transaction();
+    // ---- 暂存：仅状态记录不存在时执行 ----
+    if (status.isEmpty()) {
+        for (const auto &date : dates) {
+            // 清理该批旧快照（脏数据）
+            mFileMgr->removeSnapshot(batchId, date.year(), date.month(), date.day());
 
-    // Write each date to tmp file
-    for (auto &op : ops) {
-        QString tmpPath = QString("data/%1/%2/%3.txt.tmp")
-                              .arg(op.year)
-                              .arg(op.month, 2, 10, QChar('0'))
-                              .arg(op.day, 2, 10, QChar('0'));
+            // 合并已有数据 + 批数据，按时间排序
+            QList<DailyRecord> merged = mFileMgr->readDailyFile(date.year(), date.month(), date.day());
+            merged.append(recordsByDate.value(date));
+            std::sort(merged.begin(), merged.end(), [](const DailyRecord &a, const DailyRecord &b) {
+                return a.time < b.time;
+            });
 
-        QDir().mkpath(QFileInfo(tmpPath).absolutePath());
-        QFile tmpFile(tmpPath);
-        if (!tmpFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
-            db.rollback();
-            // Clean up tmp files
-            for (const auto &o : ops) {
-                QString tp = QString("data/%1/%2/%3.txt.tmp")
-                                 .arg(o.year).arg(o.month, 2, 10, QChar('0')).arg(o.day, 2, 10, QChar('0'));
-                QFile::remove(tp);
+            // 序列化并写快照
+            QStringList parts;
+            for (const auto &r : merged) {
+                parts.append(r.time + "\n" + r.content);
             }
+            QString content = parts.join("\n\n") + "\n";
+
+            QString snapshotPath = FileManager::buildSnapshotPath(batchId, date.year(), date.month(), date.day());
+            QDir().mkpath(QFileInfo(snapshotPath).absolutePath());
+            QFile snapshotFile(snapshotPath);
+            if (!snapshotFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
+                return ErrorCode::StorageError;
+            }
+            snapshotFile.write(content.toUtf8());
+            snapshotFile.flush();
+            snapshotFile.close();
+        }
+
+        // 插入批次记录，状态=覆盖中
+        QStringList dateStrs;
+        for (const auto &date : dates)
+            dateStrs.append(date.toString("yyyyMMdd"));
+        mDbMgr->insertBatchRecord(batchId, dateStrs.join(","), Constants::BATCH_STATUS_COVERING);
+    }
+
+    // ---- 覆盖：rename 快照 → 正式文件 ----
+    for (const auto &date : dates) {
+        QString snapshotPath = FileManager::buildSnapshotPath(batchId, date.year(), date.month(), date.day());
+        if (!QFile::exists(snapshotPath)) {
+            // 快照缺失 = 该日已 rename 完成（断点续跑）
+            continue;
+        }
+
+        qint64 fileSize = QFileInfo(snapshotPath).size();
+        QString targetPath = QString("data/%1/%2/%3.txt")
+                                 .arg(date.year())
+                                 .arg(date.month(), 2, 10, QChar('0'))
+                                 .arg(date.day(), 2, 10, QChar('0'));
+
+        QFile::remove(targetPath);
+        if (!QFile::rename(snapshotPath, targetPath)) {
             return ErrorCode::StorageError;
         }
 
-        // Serialize sorted
-        auto sorted = op.newRecords;
-        std::sort(sorted.begin(), sorted.end(), [](const DailyRecord &a, const DailyRecord &b) {
-            return a.time < b.time;
-        });
-        QStringList parts;
-        for (const auto &r : sorted) {
-            parts.append(r.time + "\n" + r.content);
-        }
-        QString content = parts.join("\n\n") + "\n";
-        tmpFile.write(content.toUtf8());
-        tmpFile.flush();
-        tmpFile.close();
-
-        // Update index with optimistic lock
-        qint64 fileSize = tmpFile.size();
-        bool ok;
-        if (op.exists) {
-            ok = mDbMgr->updateWithVersion(op.year, op.month, op.day, op.path, fileSize, op.expectedVersion);
-        } else {
-            mDbMgr->upsertIndexEntry(op.year, op.month, op.day, op.path, fileSize);
-            ok = true;
-        }
-
-        if (!ok) {
-            db.rollback();
-            // Clean up tmp files
-            for (const auto &o : ops) {
-                QString tp = QString("data/%1/%2/%3.txt.tmp")
-                                 .arg(o.year).arg(o.month, 2, 10, QChar('0')).arg(o.day, 2, 10, QChar('0'));
-                QFile::remove(tp);
-            }
-            return ErrorCode::VersionConflict;
-        }
+        // rename 后更新索引，保证索引反映真实文件
+        mDbMgr->upsertIndexEntry(date.year(), date.month(), date.day(), targetPath, fileSize);
+        emit dataChanged(date.year(), date.month(), date.day());
     }
 
-    // Insert batch record
-    mDbMgr->insertBatch(batchId, dateStrs.join(","));
-    db.commit();
-
-    // Rename tmp → target
-    for (const auto &op : ops) {
-        QString tmpPath = QString("data/%1/%2/%3.txt.tmp")
-                              .arg(op.year).arg(op.month, 2, 10, QChar('0')).arg(op.day, 2, 10, QChar('0'));
-        QString targetPath = QString("data/%1/%2/%3.txt")
-                                 .arg(op.year).arg(op.month, 2, 10, QChar('0')).arg(op.day, 2, 10, QChar('0'));
-        QFile::remove(targetPath);
-        QFile::rename(tmpPath, targetPath);
-        emit dataChanged(op.year, op.month, op.day);
-    }
+    mDbMgr->updateBatchStatus(batchId, Constants::BATCH_STATUS_DONE);
 
     return ErrorCode::Success;
 }

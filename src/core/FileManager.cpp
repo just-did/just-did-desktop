@@ -29,7 +29,7 @@ QString FileManager::buildTmpPath(int year, int month, int day) const
 
 // --- Parsing ---
 
-QList<DailyRecord> FileManager::parseContent(const QString &text) const
+QList<DailyRecord> FileManager::parseContent(const QString &text)
 {
     QList<DailyRecord> records;
 
@@ -47,6 +47,23 @@ QList<DailyRecord> FileManager::parseContent(const QString &text) const
         }
     }
     return records;
+}
+
+// --- Snapshots ---
+
+QString FileManager::buildSnapshotPath(const QString &batchId, int year, int month, int day)
+{
+    // {batchId}-{DD}.txt（批ID在前，与规格一致）
+    return QString("data/%1/%2/%4-%3.txt")
+        .arg(year)
+        .arg(month, 2, 10, QChar('0'))
+        .arg(day, 2, 10, QChar('0'))
+        .arg(batchId);
+}
+
+void FileManager::removeSnapshot(const QString &batchId, int year, int month, int day)
+{
+    QFile::remove(buildSnapshotPath(batchId, year, month, day));
 }
 
 QString FileManager::serializeContent(const QList<DailyRecord> &records) const

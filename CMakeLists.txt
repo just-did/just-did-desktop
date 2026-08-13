@@ -18,4 +18,21 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(yaml-cpp)
 
+# minizip-ng (FetchContent 自动获取，ZIP 解压)
+set(MZ_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(MZ_BUILD_UNIT_TESTS OFF CACHE BOOL "" FORCE)
+set(MZ_BUILD_FUZZERS OFF CACHE BOOL "" FORCE)
+set(MZ_BZIP2 OFF CACHE BOOL "" FORCE)
+set(MZ_LZMA OFF CACHE BOOL "" FORCE)
+set(MZ_ZSTD OFF CACHE BOOL "" FORCE)
+set(MZ_PKCRYPT OFF CACHE BOOL "" FORCE)
+set(MZ_WZAES OFF CACHE BOOL "" FORCE)
+set(MZ_OPENSSL OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+    minizip-ng
+    GIT_REPOSITORY https://github.com/zlib-ng/minizip-ng.git
+    GIT_TAG        3.0.10
+)
+FetchContent_MakeAvailable(minizip-ng)
+
 add_subdirectory(src)

@@ -20,8 +20,10 @@ public:
 
     void removeIndexEntry(int year, int month, int day);
 
-    bool isBatchProcessed(const QString &batchId);
-    void insertBatch(const QString &batchId, const QString &dates);
+    // 批处理记录（batch_id 主键，status: 覆盖中/已完成）
+    QString getBatchStatus(const QString &batchId);   // 记录不存在返回空字符串
+    void insertBatchRecord(const QString &batchId, const QString &dates, const QString &status);
+    void updateBatchStatus(const QString &batchId, const QString &status);
     QStringList getBatchDates(const QString &batchId);
 
 private:

@@ -13,6 +13,13 @@ constexpr int HEARTBEAT_TIMEOUT_SEC = 45;    // 电脑端超时阈值
 constexpr int MAX_FETCH_FILES = 32;
 constexpr int MAX_FETCH_DAY_SPAN = 31;
 
+// 提交批数据限制
+constexpr qint64 MAX_BATCH_UNZIPPED_SIZE = 5 * 1024 * 1024;  // ZIP 解压总大小上限 5MB
+
+// 批处理记录状态
+inline constexpr const char *BATCH_STATUS_COVERING = "覆盖中";
+inline constexpr const char *BATCH_STATUS_DONE = "已完成";
+
 // 日志
 constexpr qint64 LOG_FILE_MAX_SIZE = 4 * 1024 * 1024;    // 4 MB
 constexpr qint64 LOG_TOTAL_MAX_SIZE = 12 * 1024 * 1024;  // 12 MB

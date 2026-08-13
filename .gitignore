@@ -13,3 +13,6 @@ just_do.db
 logs/
 data/
 qt_debug.log
+
+# Python
+__pycache__/

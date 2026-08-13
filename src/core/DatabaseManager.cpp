@@ -51,10 +51,14 @@ void DatabaseManager::migrate()
         ")");
 
     query.exec(
-        "CREATE TABLE IF NOT EXISTS pc_processed_batches ("
+        "CREATE TABLE IF NOT EXISTS pc_batch_records ("
         "  batch_id TEXT PRIMARY KEY,"
-        "  dates TEXT NOT NULL"
+        "  dates TEXT NOT NULL,"
+        "  status TEXT NOT NULL"
         ")");
+
+    // 旧表直接删除，数据不迁移
+    query.exec("DROP TABLE IF EXISTS pc_processed_batches");
 }
 
 std::optional<IndexEntry> DatabaseManager::getIndexEntry(int year, int month, int day)
@@ -151,27 +155,42 @@ void DatabaseManager::removeIndexEntry(int year, int month, int day)
     query.exec();
 }
 
-bool DatabaseManager::isBatchProcessed(const QString &batchId)
+QString DatabaseManager::getBatchStatus(const QString &batchId)
 {
     QSqlQuery query(mDb);
-    query.prepare("SELECT 1 FROM pc_processed_batches WHERE batch_id=?");
+    query.prepare("SELECT status FROM pc_batch_records WHERE batch_id=?");
     query.addBindValue(batchId);
-    return query.exec() && query.next();
+
+    if (query.exec() && query.next()) {
+        return query.value(0).toString();
+    }
+    return {};
 }
 
-void DatabaseManager::insertBatch(const QString &batchId, const QString &dates)
+void DatabaseManager::insertBatchRecord(const QString &batchId, const QString &dates,
+                                        const QString &status)
 {
     QSqlQuery query(mDb);
-    query.prepare("INSERT OR IGNORE INTO pc_processed_batches (batch_id, dates) VALUES (?, ?)");
+    query.prepare("INSERT OR IGNORE INTO pc_batch_records (batch_id, dates, status) VALUES (?, ?, ?)");
     query.addBindValue(batchId);
     query.addBindValue(dates);
+    query.addBindValue(status);
+    query.exec();
+}
+
+void DatabaseManager::updateBatchStatus(const QString &batchId, const QString &status)
+{
+    QSqlQuery query(mDb);
+    query.prepare("UPDATE pc_batch_records SET status=? WHERE batch_id=?");
+    query.addBindValue(status);
+    query.addBindValue(batchId);
     query.exec();
 }
 
 QStringList DatabaseManager::getBatchDates(const QString &batchId)
 {
     QSqlQuery query(mDb);
-    query.prepare("SELECT dates FROM pc_processed_batches WHERE batch_id=?");
+    query.prepare("SELECT dates FROM pc_batch_records WHERE batch_id=?");
     query.addBindValue(batchId);
 
     if (query.exec() && query.next()) {

@@ -9,6 +9,7 @@ target_link_libraries(justdid_service PUBLIC
     Qt6::Core
     Qt6::Network
     Qt6::HttpServer
+    MINIZIP::minizip
 )
 
 target_include_directories(justdid_service PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

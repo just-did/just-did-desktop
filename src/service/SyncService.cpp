@@ -1,6 +1,7 @@
 #include "SyncService.h"
 #include "core/DataManager.h"
 #include "core/DatabaseManager.h"
+#include "core/FileManager.h"
 #include "core/ConnectionStateMachine.h"
 #include "common/Constants.h"
 #include "common/ErrorCode.h"
@@ -11,7 +12,14 @@
 #include <QJsonDocument>
 #include <QDateTime>
 #include <QTemporaryFile>
+#include <QRegularExpression>
 #include <QSysInfo>
+
+// minizip-ng (ZIP 解压)
+#include <mz.h>
+#include <mz_strm.h>
+#include <mz_zip.h>
+#include <mz_zip_rw.h>
 
 SyncService::SyncService(DataManager *dataMgr, DatabaseManager *dbMgr,
                          ConnectionStateMachine *stateMachine)
@@ -21,104 +29,8 @@ SyncService::SyncService(DataManager *dataMgr, DatabaseManager *dbMgr,
 
 // --- Submit ---
 
-QMap<QDate, QList<DailyRecord>> SyncService::parseSubmitBody(const QString &text) const
+QJsonObject SyncService::buildUpdatedIndexResponse(const QString &batchId, const QString &message) const
 {
-    QMap<QDate, QList<DailyRecord>> result;
-
-    // Split by triple newlines to get date blocks
-    QStringList dateBlocks = text.split("\n\n\n", Qt::SkipEmptyParts);
-
-    for (const auto &block : dateBlocks) {
-        QString trimmed = block.trimmed();
-        if (trimmed.isEmpty()) continue;
-
-        // First line is date (YYYYMMDD)
-        int firstNewline = trimmed.indexOf('\n');
-        if (firstNewline <= 0) continue;
-
-        QString dateStr = trimmed.left(firstNewline).trimmed();
-        QDate date = QDate::fromString(dateStr, "yyyyMMdd");
-        if (!date.isValid()) continue;
-
-        // Remaining is records
-        QString recordsPart = trimmed.mid(firstNewline + 1);
-
-        // Split by double newlines to get individual records
-        QStringList recordBlocks = recordsPart.split("\n\n", Qt::SkipEmptyParts);
-        QList<DailyRecord> records;
-
-        for (const auto &recBlock : recordBlocks) {
-            int nlPos = recBlock.indexOf('\n');
-            if (nlPos <= 0) continue;
-
-            DailyRecord r;
-            r.time = recBlock.left(nlPos).trimmed();
-            r.content = recBlock.mid(nlPos + 1).trimmed();
-
-            if (!r.time.isEmpty() && !r.content.isEmpty()) {
-                records.append(r);
-            }
-        }
-
-        if (!records.isEmpty()) {
-            result[date] = records;
-        }
-    }
-
-    return result;
-}
-
-QJsonObject SyncService::submit(const QByteArray &body, const QString &batchId)
-{
-    QString text = QString::fromUtf8(body);
-
-    // Check idempotency
-    if (mDbMgr->isBatchProcessed(batchId)) {
-        auto index = mDataMgr->getUpdatedIndexForBatch(batchId);
-        QJsonArray idxArr;
-        for (const auto &e : index) {
-            QJsonObject obj;
-            obj["year"] = e.year;
-            obj["month"] = e.month;
-            obj["day"] = e.day;
-            obj["path"] = e.path;
-            obj["file_size"] = e.fileSize;
-            idxArr.append(obj);
-        }
-        QJsonObject resp;
-        resp["code"] = 0;
-        resp["message"] = "暂存提交成功";
-        resp["updated_index"] = idxArr;
-        return resp;
-    }
-
-    // Parse body
-    auto recordsByDate = parseSubmitBody(text);
-    if (recordsByDate.isEmpty()) {
-        QJsonObject resp;
-        resp["code"] = -3;
-        resp["message"] = "请求体解析失败或无有效记录";
-        return resp;
-    }
-
-    // Merge records
-    ErrorCode ec = mDataMgr->mergeRecords(recordsByDate, batchId);
-
-    if (ec == ErrorCode::VersionConflict) {
-        QJsonObject resp;
-        resp["code"] = -4;
-        resp["message"] = "数据版本冲突，请重试";
-        return resp;
-    }
-
-    if (ec == ErrorCode::StorageError) {
-        QJsonObject resp;
-        resp["code"] = 1;
-        resp["message"] = "服务器存储错误";
-        return resp;
-    }
-
-    // Success
     auto index = mDataMgr->getUpdatedIndexForBatch(batchId);
     QJsonArray idxArr;
     for (const auto &e : index) {
@@ -133,9 +45,171 @@ QJsonObject SyncService::submit(const QByteArray &body, const QString &batchId)
 
     QJsonObject resp;
     resp["code"] = 0;
-    resp["message"] = "暂存提交成功";
+    resp["message"] = message;
     resp["updated_index"] = idxArr;
     return resp;
+}
+
+QJsonObject SyncService::submit(const QByteArray &body, const QString &batchId)
+{
+    // 同步处理锁：同一时刻至多一个同步处理，占用时返回 -5
+    if (!mSyncMutex.tryLock()) {
+        QJsonObject resp;
+        resp["code"] = -5;
+        resp["message"] = "同步处理中，请稍后重试";
+        return resp;
+    }
+    struct LockGuard {
+        QMutex &m;
+        ~LockGuard() { m.unlock(); }
+    } guard{mSyncMutex};
+
+    mStateMachine->onSyncStart();
+    QJsonObject resp = submitLocked(body, batchId);
+    mStateMachine->onSyncComplete();
+    return resp;
+}
+
+QJsonObject SyncService::submitLocked(const QByteArray &body, const QString &batchId)
+{
+    // 批ID 白名单校验（批ID 会拼入快照文件名）
+    static const QRegularExpression batchIdRe("^[A-Za-z0-9-]+$");
+    if (!batchIdRe.match(batchId).hasMatch()) {
+        QJsonObject resp;
+        resp["code"] = -3;
+        resp["message"] = "批ID不合法";
+        return resp;
+    }
+
+    // 状态分支
+    QString status = mDbMgr->getBatchStatus(batchId);
+
+    // 已完成 → 幂等返回
+    if (status == Constants::BATCH_STATUS_DONE) {
+        return buildUpdatedIndexResponse(batchId, "同步成功");
+    }
+
+    // 覆盖中 → 忽略数据体；否则解析 ZIP
+    QMap<QDate, QList<DailyRecord>> recordsByDate;
+    if (status != Constants::BATCH_STATUS_COVERING) {
+        StagingParse parsed = parseStagingZip(body, batchId);
+        if (parsed.errorCode != 0) {
+            QJsonObject resp;
+            resp["code"] = parsed.errorCode;
+            resp["message"] = parsed.errorCode == -2
+                ? QString("批数据解压后超过 %1MB 上限").arg(Constants::MAX_BATCH_UNZIPPED_SIZE / 1024 / 1024)
+                : "批数据解析失败";
+            return resp;
+        }
+        recordsByDate = parsed.recordsByDate;
+    }
+
+    // 两阶段合并：暂存 → 覆盖
+    ErrorCode ec = mDataMgr->mergeRecords(recordsByDate, batchId);
+
+    if (ec == ErrorCode::StorageError) {
+        QJsonObject resp;
+        resp["code"] = 1;
+        resp["message"] = "服务器存储错误";
+        return resp;
+    }
+
+    if (ec == ErrorCode::InternalError) {
+        QJsonObject resp;
+        resp["code"] = -1;
+        resp["message"] = "服务器内部错误";
+        return resp;
+    }
+
+    return buildUpdatedIndexResponse(batchId, "同步成功");
+}
+
+SyncService::StagingParse SyncService::parseStagingZip(const QByteArray &zipData, const QString &batchId)
+{
+    StagingParse result;
+
+    void *reader = nullptr;
+    mz_zip_reader_create(&reader);
+
+    int32_t err = mz_zip_reader_open_buffer(reader, (uint8_t *)zipData.constData(),
+                                            (int32_t)zipData.size(), 0);
+    if (err != MZ_OK) {
+        result.errorCode = -3;  // ZIP 损坏或非 ZIP 格式
+        mz_zip_reader_delete(&reader);
+        return result;
+    }
+
+    const QString folderPrefix = batchId + "/";
+    const QRegularExpression stagingRe("^staging-(\\d{8})\\.txt$");
+
+    // 第一遍：检查解压总大小上限
+    qint64 totalSize = 0;
+    for (err = mz_zip_reader_goto_first_entry(reader); err == MZ_OK;
+         err = mz_zip_reader_goto_next_entry(reader)) {
+        mz_zip_file *info = nullptr;
+        mz_zip_reader_entry_get_info(reader, &info);
+        if (info) {
+            totalSize += info->uncompressed_size;
+        }
+    }
+    if (totalSize > Constants::MAX_BATCH_UNZIPPED_SIZE) {
+        result.errorCode = -2;
+        mz_zip_reader_close(reader);
+        mz_zip_reader_delete(&reader);
+        return result;
+    }
+
+    // 第二遍：提取 {batchId}/ 文件夹下的 staging 文件
+    for (err = mz_zip_reader_goto_first_entry(reader); err == MZ_OK;
+         err = mz_zip_reader_goto_next_entry(reader)) {
+        mz_zip_file *info = nullptr;
+        mz_zip_reader_entry_get_info(reader, &info);
+        if (!info) continue;
+
+        QString filename = QString::fromUtf8(info->filename);
+        if (filename.endsWith('/')) continue;                  // 目录条目
+        if (!filename.startsWith(folderPrefix)) continue;      // 批文件夹之外 → 忽略
+
+        // 批文件夹内必须严格匹配 staging-YYYYMMdd.txt
+        QString base = filename.mid(folderPrefix.length());
+        auto match = stagingRe.match(base);
+        if (!match.hasMatch()) {
+            result.errorCode = -3;
+            break;
+        }
+        QDate date = QDate::fromString(match.captured(1), "yyyyMMdd");
+        if (!date.isValid()) {
+            result.errorCode = -3;
+            break;
+        }
+
+        // 读取条目内容
+        mz_zip_reader_entry_open(reader);
+        QByteArray content;
+        char buf[4096];
+        int32_t n;
+        while ((n = mz_zip_reader_entry_read(reader, buf, sizeof(buf))) > 0) {
+            content.append(buf, n);
+        }
+        mz_zip_reader_entry_close(reader);
+
+        // 归一化换行后解析（与日报文件同构，复用 parseContent）
+        QString text = QString::fromUtf8(content);
+        text.replace("\r\n", "\n");
+        auto records = FileManager::parseContent(text);
+        if (!records.isEmpty()) {
+            result.recordsByDate[date] = records;
+        }
+    }
+
+    mz_zip_reader_close(reader);
+    mz_zip_reader_delete(&reader);
+
+    // 全部暂存文件均无有效记录
+    if (result.errorCode == 0 && result.recordsByDate.isEmpty()) {
+        result.errorCode = -3;
+    }
+    return result;
 }
 
 // --- Fetch ---

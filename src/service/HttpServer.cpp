@@ -140,14 +140,12 @@ void HttpServer::setupRoutes()
                                        QHttpServerResponse::StatusCode::BadRequest);
         }
 
-        mStateMachine->onSyncStart();
         QJsonObject resp = mSyncService->submit(request.body(), batchId);
-        mStateMachine->onSyncComplete();
 
         using SC = QHttpServerResponse::StatusCode;
         SC httpCode = SC::Ok;
         int code = resp["code"].toInt();
-        if (code == -4) httpCode = SC::Conflict;
+        if (code == -5) httpCode = SC::TooManyRequests;
         else if (code == -2 || code == -3) httpCode = SC::BadRequest;
         else if (code != 0) httpCode = SC::InternalServerError;
 
