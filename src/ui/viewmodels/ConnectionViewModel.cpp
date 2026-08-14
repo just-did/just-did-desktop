@@ -1,41 +1,49 @@
 #include "ConnectionViewModel.h"
 #include "service/HttpServer.h"
+#include "service/SyncService.h"
 #include "ui/QRCodeProvider.h"
 #include "core/LogManager.h"
 
-ConnectionViewModel::ConnectionViewModel(HttpServer *server, QRCodeProvider *qrProvider, QObject *parent)
-    : QObject(parent), mServer(server), mQRProvider(qrProvider), mPort(18080)
+ConnectionViewModel::ConnectionViewModel(HttpServer *server, SyncService *syncService,
+                                         QRCodeProvider *qrProvider, QObject *parent)
+    : QObject(parent), mServer(server), mSyncService(syncService), mQRProvider(qrProvider)
 {
-    auto refreshQR = [this]() {
-        int state = mServer->connectionState();
-        QString url = mServer->qrCodeUrl();
-        LogManager::instance()->info(QString("[ConnectionVM] refreshQR: state=%1, url=%2, qrProvider=%3")
-                                         .arg(state).arg(url)
-                                         .arg(mQRProvider ? "有" : "NULL"));
-        if (mQRProvider && state > 0) {
-            mQRProvider->setUrl(url);
-            LogManager::instance()->info(QString("[ConnectionVM] QR URL 已设置: %1").arg(url));
-        } else {
-            LogManager::instance()->warn(QString("[ConnectionVM] 跳过QR设置: provider=%1 state=%2")
-                                            .arg(mQRProvider ? "有" : "NULL").arg(state));
-        }
-        emit qrCodeUrlChanged();
-    };
+    // 启动状态：由 HTTP 服务的 started/stopped 信号维护
+    connect(mServer, &HttpServer::started, this, [this]() {
+        mStarted = true;
+        emit startedChanged();
+        refreshQR();
+    });
+    connect(mServer, &HttpServer::stopped, this, [this]() {
+        mStarted = false;
+        emit startedChanged();
+        refreshQR();
+    });
 
-    connect(mServer, &HttpServer::started, this, [this, refreshQR]() {
-        refreshState();
-        refreshQR();
+    // 同步状态：转发 SyncService 的忙标志，并保证「同步中」至少可见 1 秒
+    mSyncHoldTimer.setSingleShot(true);
+    mSyncHoldTimer.setInterval(3000);
+    connect(&mSyncHoldTimer, &QTimer::timeout, this, [this]() {
+        if (!mSyncingDisplay) return;
+        mSyncingDisplay = false;
+        emit syncingChanged();
     });
-    connect(mServer, &HttpServer::stopped, this, [this, refreshQR]() {
-        refreshState();
-        refreshQR();
-    });
-    connect(mServer, &HttpServer::connectionStateChanged, this, [this]() {
-        refreshState();
+    connect(mSyncService, &SyncService::syncingChanged, this, [this]() {
+        if (mSyncService->isSyncing()) {
+            mSyncHoldTimer.stop();
+            if (!mSyncingDisplay) {
+                mSyncingDisplay = true;
+                emit syncingChanged();
+            }
+        } else {
+            // 处理结束：保持「同步中」至少 3 秒，短促同步也可感知
+            mSyncHoldTimer.start();
+        }
     });
 }
 
-int ConnectionViewModel::connectionState() const { return mState; }
+bool ConnectionViewModel::started() const { return mStarted; }
+bool ConnectionViewModel::syncing() const { return mSyncingDisplay; }
 
 QString ConnectionViewModel::qrCodeUrl() const
 {
@@ -58,17 +66,23 @@ QString ConnectionViewModel::localIP() const
 }
 
 int ConnectionViewModel::port() const { return mPort; }
-QString ConnectionViewModel::connectedDeviceName() const { return {}; }
 
 void ConnectionViewModel::startServer() { mServer->start(mPort); }
 void ConnectionViewModel::stopServer() { mServer->stop(); }
 void ConnectionViewModel::setPort(int port) { mPort = port; emit portChanged(); }
 
-void ConnectionViewModel::refreshState()
+void ConnectionViewModel::refreshQR()
 {
-    int newState = mServer->connectionState();
-    if (newState != mState) {
-        mState = newState;
-        emit connectionStateChanged();
+    QString url = mServer->qrCodeUrl();
+    LogManager::instance()->info(QString("[ConnectionVM] refreshQR: started=%1, url=%2, qrProvider=%3")
+                                     .arg(mStarted ? 1 : 0).arg(url)
+                                     .arg(mQRProvider ? "有" : "NULL"));
+    if (mQRProvider && mStarted) {
+        mQRProvider->setUrl(url);
+        LogManager::instance()->info(QString("[ConnectionVM] QR URL 已设置: %1").arg(url));
+    } else {
+        LogManager::instance()->warn(QString("[ConnectionVM] 跳过QR设置: provider=%1 started=%2")
+                                        .arg(mQRProvider ? "有" : "NULL").arg(mStarted ? 1 : 0));
     }
+    emit qrCodeUrlChanged();
 }

@@ -22,7 +22,6 @@ bool ConfigManager::load(const QString &configPath)
         if (config["server"]) {
             auto server = config["server"];
             if (server["port"]) mPort = server["port"].as<int>();
-            if (server["heartbeat_timeout"]) mHeartbeatTimeout = server["heartbeat_timeout"].as<int>();
         }
 
         if (config["ui"]) {
@@ -54,7 +53,6 @@ bool ConfigManager::save()
 
     out << YAML::Key << "server" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "port" << YAML::Value << mPort;
-    out << YAML::Key << "heartbeat_timeout" << YAML::Value << mHeartbeatTimeout;
     out << YAML::EndMap;
 
     out << YAML::Key << "ui" << YAML::Value << YAML::BeginMap;
@@ -86,15 +84,12 @@ bool ConfigManager::save()
 void ConfigManager::applyDefaults()
 {
     mPort = Constants::DEFAULT_PORT;
-    mHeartbeatTimeout = Constants::HEARTBEAT_TIMEOUT_SEC;
     mFloatingWindowPos = QPoint(100, 200);
     mMainWindowSize = QSize(800, 600);
 }
 
 int ConfigManager::port() const { QMutexLocker lock(&mMutex); return mPort; }
 void ConfigManager::setPort(int port) { QMutexLocker lock(&mMutex); mPort = port; save(); }
-int ConfigManager::heartbeatTimeout() const { QMutexLocker lock(&mMutex); return mHeartbeatTimeout; }
-void ConfigManager::setHeartbeatTimeout(int sec) { QMutexLocker lock(&mMutex); mHeartbeatTimeout = sec; save(); }
 QPoint ConfigManager::floatingWindowPosition() const { QMutexLocker lock(&mMutex); return mFloatingWindowPos; }
 void ConfigManager::setFloatingWindowPosition(const QPoint &pos) { QMutexLocker lock(&mMutex); mFloatingWindowPos = pos; save(); }
 QSize ConfigManager::mainWindowSize() const { QMutexLocker lock(&mMutex); return mMainWindowSize; }

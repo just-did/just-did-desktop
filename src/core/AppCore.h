@@ -8,7 +8,6 @@ class LogManager;
 class DatabaseManager;
 class FileManager;
 class DataManager;
-class ConnectionStateMachine;
 
 class AppCore : public QObject
 {
@@ -24,7 +23,6 @@ public:
     DatabaseManager *databaseManager() const;
     FileManager *fileManager() const;
     DataManager *dataManager() const;
-    ConnectionStateMachine *connectionStateMachine() const;
 
 signals:
     void startupCompleted();
@@ -37,6 +35,5 @@ private:
     QScopedPointer<DatabaseManager> mDbMgr;
     QScopedPointer<FileManager> mFileMgr;
     QScopedPointer<DataManager> mDataMgr;
-    QScopedPointer<ConnectionStateMachine> mStateMachine;
     bool mInitialized = false;
 };

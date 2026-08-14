@@ -10,6 +10,7 @@
 #include <QTimer>
 
 #include "core/AppCore.h"
+#include "core/DataManager.h"
 #include "service/ReportService.h"
 #include "service/SyncService.h"
 #include "service/HttpServer.h"
@@ -48,9 +49,8 @@ int main(int argc, char *argv[])
 
     // Create service layer objects
     ReportService reportService(appCore->dataManager());
-    SyncService syncService(appCore->dataManager(), appCore->databaseManager(),
-                             appCore->connectionStateMachine());
-    HttpServer httpServer(&syncService, appCore->connectionStateMachine());
+    SyncService syncService(appCore->dataManager(), appCore->databaseManager());
+    HttpServer httpServer(&syncService);
 
     // Create UI models
     CalendarModel calendarModel;
@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
     // QR code image provider
     QRCodeProvider *qrProvider = new QRCodeProvider();
 
-    ConnectionViewModel connectionVM(&httpServer, qrProvider);
+    ConnectionViewModel connectionVM(&httpServer, &syncService, qrProvider);
 
     // QML engine
     QQmlApplicationEngine engine;
@@ -119,6 +119,17 @@ int main(int argc, char *argv[])
         timelineVM.selectDate(today.year(), today.month(), today.day());
     });
 
+    // 数据变更后自动刷新 UI（同步覆盖、本地记录、清空等统一走 dataChanged）
+    QObject::connect(appCore->dataManager(), &DataManager::dataChanged,
+                     &app, [&](int year, int month, int day) {
+        calendarVM.loadMonth(calendarVM.currentYear(), calendarVM.currentMonth());
+        if (year == timelineVM.selectedYear() && month == timelineVM.selectedMonth()
+            && day == timelineVM.selectedDay()) {
+            timelineVM.selectDate(year, month, day);
+        }
+        storageVM.refreshStats();
+    });
+
     // Load initial data
     calendarVM.loadMonth(calendarVM.currentYear(), calendarVM.currentMonth());
     // Default to showing today's report
@@ -128,16 +139,12 @@ int main(int argc, char *argv[])
 
     // 启动同步恢复：事件循环第一拍执行（注册时机先于窗口 show 定时器，用户看到窗口前已完成）。
     // 与提交接口共用同步锁；失败批次 toast 提示 1 秒，无需用户操作。
+    // UI 刷新由 dataChanged 接线统一处理（恢复产生的变更会自动触发）。
     QTimer::singleShot(0, &app, [&]() {
         const QStringList failed = syncService.recoverPendingBatches();
         if (!failed.isEmpty()) {
             toastVM.show(QString("%1 个批次恢复失败，无需操作").arg(failed.size()));
         }
-
-        // 恢复可能更新了索引与日报文件，显式刷新（UI 无 dataChanged 监听者）
-        QDate refreshDate = QDate::currentDate();
-        calendarVM.loadMonth(refreshDate.year(), refreshDate.month());
-        timelineVM.selectDate(refreshDate.year(), refreshDate.month(), refreshDate.day());
     });
 
     // Redirect Qt messages to file for debugging

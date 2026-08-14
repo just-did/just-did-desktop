@@ -2,47 +2,53 @@
 
 #include <QObject>
 #include <QString>
+#include <QTimer>
 
 class HttpServer;
+class SyncService;
 class QRCodeProvider;
 
 class ConnectionViewModel : public QObject
 {
     Q_OBJECT
-    Q_PROPERTY(int connectionState READ connectionState NOTIFY connectionStateChanged)
+    Q_PROPERTY(bool started READ started NOTIFY startedChanged)
+    Q_PROPERTY(bool syncing READ syncing NOTIFY syncingChanged)
     Q_PROPERTY(QString qrCodeUrl READ qrCodeUrl NOTIFY qrCodeUrlChanged)
     Q_PROPERTY(int qrVersion READ qrVersion NOTIFY qrCodeUrlChanged)
     Q_PROPERTY(QString localIP READ localIP NOTIFY qrCodeUrlChanged)
     Q_PROPERTY(int port READ port NOTIFY portChanged)
-    Q_PROPERTY(QString connectedDeviceName READ connectedDeviceName NOTIFY connectedDeviceNameChanged)
 
 public:
-    explicit ConnectionViewModel(HttpServer *server, QRCodeProvider *qrProvider = nullptr,
+    explicit ConnectionViewModel(HttpServer *server, SyncService *syncService,
+                                 QRCodeProvider *qrProvider = nullptr,
                                  QObject *parent = nullptr);
 
-    int connectionState() const;
+    bool started() const;
+    bool syncing() const;
     QString qrCodeUrl() const;
     int qrVersion() const;
     QString localIP() const;
     int port() const;
-    QString connectedDeviceName() const;
 
     Q_INVOKABLE void startServer();
     Q_INVOKABLE void stopServer();
     Q_INVOKABLE void setPort(int port);
 
 signals:
-    void connectionStateChanged();
+    void startedChanged();
+    void syncingChanged();
     void qrCodeUrlChanged();
     void localIPChanged();
     void portChanged();
-    void connectedDeviceNameChanged();
 
 private:
-    void refreshState();
+    void refreshQR();
 
     HttpServer *mServer;
+    SyncService *mSyncService;
     QRCodeProvider *mQRProvider = nullptr;
-    int mState = 0;
+    bool mStarted = false;
+    bool mSyncingDisplay = false;               // 展示用同步状态（含最小可见时长）
+    QTimer mSyncHoldTimer;                      // 「同步中」最短展示时长
     int mPort = 18080;
 };

@@ -15,8 +15,6 @@ public:
 
     int port() const;
     void setPort(int port);
-    int heartbeatTimeout() const;
-    void setHeartbeatTimeout(int sec);
 
     QPoint floatingWindowPosition() const;
     void setFloatingWindowPosition(const QPoint &pos);
@@ -30,7 +28,6 @@ private:
     QString mConfigPath;
 
     int mPort = 18080;
-    int mHeartbeatTimeout = 45;
     QPoint mFloatingWindowPos{100, 200};
     QSize mMainWindowSize{800, 600};
 };

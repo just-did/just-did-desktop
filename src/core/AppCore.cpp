@@ -4,7 +4,6 @@
 #include "DatabaseManager.h"
 #include "FileManager.h"
 #include "DataManager.h"
-#include "ConnectionStateMachine.h"
 
 AppCore::AppCore(QObject *parent) : QObject(parent) {}
 
@@ -47,11 +46,7 @@ bool AppCore::init()
     mDataMgr.reset(new DataManager(mFileMgr.data(), mDbMgr.data()));
     LogManager::instance()->info("数据管理器初始化完成");
 
-    // 6. ConnectionStateMachine
-    mStateMachine.reset(new ConnectionStateMachine());
-    LogManager::instance()->info("连接状态机初始化完成");
-
-    // 7. HttpServer initialization is handled by service layer through startServer()
+    // 6. HttpServer initialization is handled by service layer through startServer()
 
     mInitialized = true;
     LogManager::instance()->info("应用核心初始化完成");
@@ -73,4 +68,3 @@ LogManager *AppCore::logManager() const { return LogManager::instance(); }
 DatabaseManager *AppCore::databaseManager() const { return mDbMgr.data(); }
 FileManager *AppCore::fileManager() const { return mFileMgr.data(); }
 DataManager *AppCore::dataManager() const { return mDataMgr.data(); }
-ConnectionStateMachine *AppCore::connectionStateMachine() const { return mStateMachine.data(); }

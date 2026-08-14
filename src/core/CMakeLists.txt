@@ -5,7 +5,6 @@ add_library(justdid_core STATIC
     DatabaseManager.cpp
     FileManager.cpp
     DataManager.cpp
-    ConnectionStateMachine.cpp
 )
 
 target_link_libraries(justdid_core PUBLIC

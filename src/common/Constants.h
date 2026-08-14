@@ -7,7 +7,6 @@ namespace Constants {
 // 网络
 constexpr int DEFAULT_PORT = 18080;
 constexpr int HEARTBEAT_INTERVAL_SEC = 15;   // 手机端心跳间隔
-constexpr int HEARTBEAT_TIMEOUT_SEC = 45;    // 电脑端超时阈值
 
 // 拉取限制
 constexpr int MAX_FETCH_FILES = 32;

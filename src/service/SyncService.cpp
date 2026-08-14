@@ -2,7 +2,6 @@
 #include "core/DataManager.h"
 #include "core/DatabaseManager.h"
 #include "core/FileManager.h"
-#include "core/ConnectionStateMachine.h"
 #include "core/LogManager.h"
 #include "common/Constants.h"
 #include "common/ErrorCode.h"
@@ -15,7 +14,6 @@
 #include <QTemporaryFile>
 #include <QRegularExpression>
 #include <QMutexLocker>
-#include <QSysInfo>
 
 // minizip-ng (ZIP 解压)
 #include <mz.h>
@@ -23,9 +21,8 @@
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
 
-SyncService::SyncService(DataManager *dataMgr, DatabaseManager *dbMgr,
-                         ConnectionStateMachine *stateMachine)
-    : mDataMgr(dataMgr), mDbMgr(dbMgr), mStateMachine(stateMachine)
+SyncService::SyncService(DataManager *dataMgr, DatabaseManager *dbMgr, QObject *parent)
+    : QObject(parent), mDataMgr(dataMgr), mDbMgr(dbMgr)
 {
 }
 
@@ -66,9 +63,10 @@ QJsonObject SyncService::submit(const QByteArray &body, const QString &batchId)
         ~LockGuard() { m.unlock(); }
     } guard{mSyncMutex};
 
-    mStateMachine->onSyncStart();
+    // 拿到锁才算开始同步处理（-5 路径不点亮同步状态）
+    setSyncing(true);
     QJsonObject resp = submitLocked(body, batchId);
-    mStateMachine->onSyncComplete();
+    setSyncing(false);
     return resp;
 }
 
@@ -226,6 +224,9 @@ QStringList SyncService::recoverPendingBatches()
     if (covering.isEmpty())
         return failed;
 
+    // 有覆盖中批次才算开始同步处理（空载启动不点亮同步状态）
+    setSyncing(true);
+
     LogManager::instance()->info(
         QString("[SyncService] 启动同步恢复：发现 %1 个「覆盖中」批次").arg(covering.size()));
 
@@ -254,6 +255,7 @@ QStringList SyncService::recoverPendingBatches()
 
     LogManager::instance()->info(
         QString("[SyncService] 启动同步恢复完成：%1/%2 个批次已覆盖").arg(recovered).arg(covering.size()));
+    setSyncing(false);
     return failed;
 }
 
@@ -399,29 +401,23 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
     return resp;
 }
 
-// --- Connect / Health ---
+// --- Sync status / Health ---
 
-QJsonObject SyncService::connectDevice(const QJsonObject &request)
+bool SyncService::isSyncing() const
 {
-    QString deviceName = request["device_name"].toString("未知设备");
-    mStateMachine->onConnect();
+    return mSyncing;
+}
 
-    QJsonObject resp;
-    resp["code"] = 0;
-    resp["message"] = "连接成功";
-
-    QJsonObject serverInfo;
-    serverInfo["version"] = "1.0.0";
-    serverInfo["hostname"] = QSysInfo::machineHostName();
-    resp["server_info"] = serverInfo;
-
-    return resp;
+void SyncService::setSyncing(bool syncing)
+{
+    if (mSyncing == syncing) return;
+    mSyncing = syncing;
+    emit syncingChanged();
 }
 
 QJsonObject SyncService::healthCheck()
 {
-    mStateMachine->onHeartbeatReceived();
-
+    // 纯存活探测：手机端靠它判断电脑端在线，无任何状态副作用
     QJsonObject resp;
     resp["status"] = "ok";
     resp["timestamp"] = QDateTime::currentDateTime().toString(Qt::ISODate);

@@ -24,11 +24,3 @@ struct BatchInfo {
     QString batchId;
     QStringList dates; // "20260723", "20260724", ...
 };
-
-// 连接状态
-enum class ConnectionState {
-    Unstarted,    // 未启动
-    Disconnected, // 未连接
-    Connected,    // 已连接
-    Syncing       // 同步中
-};

@@ -1,6 +1,5 @@
 #include "HttpServer.h"
 #include "SyncService.h"
-#include "core/ConnectionStateMachine.h"
 #include "core/LogManager.h"
 
 #include <QHttpServer>
@@ -9,9 +8,8 @@
 #include <QJsonObject>
 #include <QNetworkInterface>
 
-HttpServer::HttpServer(SyncService *syncService, ConnectionStateMachine *stateMachine,
-                       QObject *parent)
-    : QObject(parent), mSyncService(syncService), mStateMachine(stateMachine),
+HttpServer::HttpServer(SyncService *syncService, QObject *parent)
+    : QObject(parent), mSyncService(syncService),
       mServer(nullptr), mTcpServer(nullptr)
 {
 }
@@ -43,11 +41,6 @@ bool HttpServer::start(int port)
     }
 
     mServer->bind(mTcpServer);
-    mStateMachine->start();
-
-    // Forward state changes to ViewModel (through service layer)
-    connect(mStateMachine, &ConnectionStateMachine::stateChanged,
-            this, &HttpServer::connectionStateChanged, Qt::UniqueConnection);
 
     // Log server info
     QString localIP = getLocalIP();
@@ -56,11 +49,6 @@ bool HttpServer::start(int port)
 
     emit started(port);
     return true;
-}
-
-int HttpServer::connectionState() const
-{
-    return static_cast<int>(mStateMachine->state());
 }
 
 void HttpServer::stop()
@@ -90,10 +78,6 @@ void HttpServer::stop()
         LogManager::instance()->info("[HttpServer] stop() - QTcpServer 已标记删除");
     }
 
-    LogManager::instance()->info("[HttpServer] stop() - 停止状态机...");
-    mStateMachine->stop();
-    LogManager::instance()->info("[HttpServer] stop() - 状态机已停止");
-
     LogManager::instance()->info("[HttpServer] stop() - 发送 stopped 信号...");
     emit stopped();
     LogManager::instance()->info("[HttpServer] stop() 完成");
@@ -101,21 +85,6 @@ void HttpServer::stop()
 
 void HttpServer::setupRoutes()
 {
-    // POST /sync/connect
-    mServer->route("/sync/connect", [this](const QHttpServerRequest &request) {
-        if (request.method() != QHttpServerRequest::Method::Post) {
-            return QHttpServerResponse(QHttpServerResponse::StatusCode::MethodNotAllowed);
-        }
-
-        QJsonDocument doc = QJsonDocument::fromJson(request.body());
-        QJsonObject reqObj = doc.isObject() ? doc.object() : QJsonObject();
-
-        QJsonObject resp = mSyncService->connectDevice(reqObj);
-        QByteArray body = QJsonDocument(resp).toJson(QJsonDocument::Compact);
-
-        return QHttpServerResponse("application/json", body);
-    });
-
     // GET /health
     mServer->route("/health", [this](const QHttpServerRequest &request) {
         Q_UNUSED(request)

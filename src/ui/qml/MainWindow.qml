@@ -282,7 +282,7 @@ Rectangle {
                                 source: "image://qrcode/current?v=" + connectionVM.qrVersion
                                 cache: false
                                 fillMode: Image.PreserveAspectFit
-                                visible: connectionVM.connectionState > 0
+                                visible: connectionVM.started
                             }
 
                             Text {
@@ -290,7 +290,7 @@ Rectangle {
                                 text: "二维码"
                                 font.pixelSize: 12
                                 color: "#ccc"
-                                visible: connectionVM.connectionState === 0
+                                visible: !connectionVM.started
                             }
                         }
 
@@ -299,32 +299,12 @@ Rectangle {
                             Layout.fillWidth: true
                             spacing: 6
 
-                            // Connection status indicator
-                            RowLayout {
-                                spacing: 4
-                                Rectangle {
-                                    width: 8; height: 8; radius: 4
-                                    color: {
-                                        switch (connectionVM.connectionState) {
-                                            case 0: return "#999"
-                                            case 1: return "#E74C3C"
-                                            case 2: return "#2ECC71"
-                                            case 3: return "#F39C12"
-                                        }
-                                    }
-                                }
-                                Text {
-                                    text: {
-                                        switch (connectionVM.connectionState) {
-                                            case 0: return "未启动"
-                                            case 1: return "未连接"
-                                            case 2: return "已连接"
-                                            case 3: return "同步中"
-                                        }
-                                    }
-                                    font.pixelSize: 10
-                                    color: "#666"
-                                }
+                            // Sync status indicator（同步中 / 无任务）
+                            Text {
+                                Layout.alignment: Qt.AlignHCenter
+                                text: connectionVM.syncing ? "同步中" : "无任务"
+                                font.pixelSize: 10
+                                color: connectionVM.syncing ? "#F39C12" : "#999"
                             }
 
                             // Start / Stop button
@@ -332,11 +312,11 @@ Rectangle {
                                 Layout.fillWidth: true
                                 height: 26
                                 radius: 13
-                                color: connectionVM.connectionState === 0 ? "#1ba1e2" : "#E74C3C"
+                                color: connectionVM.started ? "#E74C3C" : "#1ba1e2"
 
                                 Text {
                                     anchors.centerIn: parent
-                                    text: connectionVM.connectionState === 0 ? "启动" : "停止"
+                                    text: connectionVM.started ? "停止" : "启动"
                                     color: "white"
                                     font.pixelSize: 11; font.bold: true
                                 }
@@ -344,10 +324,10 @@ Rectangle {
                                 MouseArea {
                                     anchors.fill: parent
                                     onClicked: {
-                                        if (connectionVM.connectionState === 0)
-                                            connectionVM.startServer()
-                                        else
+                                        if (connectionVM.started)
                                             connectionVM.stopServer()
+                                        else
+                                            connectionVM.startServer()
                                     }
                                 }
                             }
