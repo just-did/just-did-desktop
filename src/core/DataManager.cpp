@@ -139,6 +139,11 @@ ErrorCode DataManager::mergeRecords(const QMap<QDate, QList<DailyRecord>> &recor
     }
 
     // ---- 覆盖：rename 快照 → 正式文件 ----
+    return coverBatch(batchId, dates);
+}
+
+ErrorCode DataManager::coverBatch(const QString &batchId, const QList<QDate> &dates)
+{
     for (const auto &date : dates) {
         QString snapshotPath = FileManager::buildSnapshotPath(batchId, date.year(), date.month(), date.day());
         if (!QFile::exists(snapshotPath)) {

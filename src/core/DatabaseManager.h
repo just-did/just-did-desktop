@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QList>
+#include <QPair>
 #include <QSqlDatabase>
 #include <optional>
 
@@ -25,6 +26,7 @@ public:
     void insertBatchRecord(const QString &batchId, const QString &dates, const QString &status);
     void updateBatchStatus(const QString &batchId, const QString &status);
     QStringList getBatchDates(const QString &batchId);
+    QList<QPair<QString, QString>> getCoveringBatches();   // 全部「覆盖中」批次 (batch_id, dates)
 
 private:
     void migrate();

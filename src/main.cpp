@@ -4,6 +4,7 @@
 #include <QDir>
 #include <QFile>
 #include <QTextStream>
+#include <QStringList>
 #include <QDate>
 #include <QQuickWindow>
 #include <QTimer>
@@ -17,6 +18,7 @@
 #include "ui/viewmodels/FloatingInputViewModel.h"
 #include "ui/viewmodels/StorageViewModel.h"
 #include "ui/viewmodels/ConnectionViewModel.h"
+#include "ui/viewmodels/ToastViewModel.h"
 #include "ui/models/CalendarModel.h"
 #include "ui/models/RecordListModel.h"
 #include "ui/QRCodeProvider.h"
@@ -59,6 +61,7 @@ int main(int argc, char *argv[])
     TimelineViewModel timelineVM(&reportService, &recordListModel);
     FloatingInputViewModel floatingInputVM(&reportService);
     StorageViewModel storageVM(&reportService);
+    ToastViewModel toastVM;
     // QR code image provider
     QRCodeProvider *qrProvider = new QRCodeProvider();
 
@@ -80,6 +83,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("timelineVM", &timelineVM);
     engine.rootContext()->setContextProperty("floatingInputVM", &floatingInputVM);
     engine.rootContext()->setContextProperty("storageVM", &storageVM);
+    engine.rootContext()->setContextProperty("toastVM", &toastVM);
     engine.rootContext()->setContextProperty("connectionVM", &connectionVM);
     engine.rootContext()->setContextProperty("calendarModel", &calendarModel);
     engine.rootContext()->setContextProperty("recordListModel", &recordListModel);
@@ -121,6 +125,20 @@ int main(int argc, char *argv[])
     QDate today = QDate::currentDate();
     timelineVM.selectDate(today.year(), today.month(), today.day());
     storageVM.refreshStats();
+
+    // 启动同步恢复：事件循环第一拍执行（注册时机先于窗口 show 定时器，用户看到窗口前已完成）。
+    // 与提交接口共用同步锁；失败批次 toast 提示 1 秒，无需用户操作。
+    QTimer::singleShot(0, &app, [&]() {
+        const QStringList failed = syncService.recoverPendingBatches();
+        if (!failed.isEmpty()) {
+            toastVM.show(QString("%1 个批次恢复失败，无需操作").arg(failed.size()));
+        }
+
+        // 恢复可能更新了索引与日报文件，显式刷新（UI 无 dataChanged 监听者）
+        QDate refreshDate = QDate::currentDate();
+        calendarVM.loadMonth(refreshDate.year(), refreshDate.month());
+        timelineVM.selectDate(refreshDate.year(), refreshDate.month(), refreshDate.day());
+    });
 
     // Redirect Qt messages to file for debugging
     QString logPath = QCoreApplication::applicationDirPath() + "/qt_debug.log";

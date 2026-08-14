@@ -3,6 +3,7 @@
 #include "core/DatabaseManager.h"
 #include "core/FileManager.h"
 #include "core/ConnectionStateMachine.h"
+#include "core/LogManager.h"
 #include "common/Constants.h"
 #include "common/ErrorCode.h"
 
@@ -13,6 +14,7 @@
 #include <QDateTime>
 #include <QTemporaryFile>
 #include <QRegularExpression>
+#include <QMutexLocker>
 #include <QSysInfo>
 
 // minizip-ng (ZIP 解压)
@@ -210,6 +212,49 @@ SyncService::StagingParse SyncService::parseStagingZip(const QByteArray &zipData
         result.errorCode = -3;
     }
     return result;
+}
+
+// --- Startup recovery ---
+
+QStringList SyncService::recoverPendingBatches()
+{
+    // 与提交共用同一把同步锁；持锁期间仅做 DB 查询与磁盘 rename，无任何跨线程等待
+    QMutexLocker locker(&mSyncMutex);
+
+    QStringList failed;
+    const auto covering = mDbMgr->getCoveringBatches();
+    if (covering.isEmpty())
+        return failed;
+
+    LogManager::instance()->info(
+        QString("[SyncService] 启动同步恢复：发现 %1 个「覆盖中」批次").arg(covering.size()));
+
+    int recovered = 0;
+    for (const auto &entry : covering) {
+        const QString &batchId = entry.first;
+
+        // 解析受影响日期，非法日期跳过
+        QList<QDate> dates;
+        const QStringList dateStrs = entry.second.split(",", Qt::SkipEmptyParts);
+        for (const auto &ds : dateStrs) {
+            QDate d = QDate::fromString(ds, "yyyyMMdd");
+            if (d.isValid()) dates.append(d);
+        }
+
+        ErrorCode ec = mDataMgr->coverBatch(batchId, dates);
+        if (ec == ErrorCode::Success) {
+            ++recovered;
+        } else {
+            // 失败：保持「覆盖中」状态，等待手机端重试同批ID续跑
+            failed.append(batchId);
+            LogManager::instance()->error(
+                QString("[SyncService] 启动同步恢复：批次 %1 恢复失败，保持「覆盖中」状态").arg(batchId));
+        }
+    }
+
+    LogManager::instance()->info(
+        QString("[SyncService] 启动同步恢复完成：%1/%2 个批次已覆盖").arg(recovered).arg(covering.size()));
+    return failed;
 }
 
 // --- Fetch ---

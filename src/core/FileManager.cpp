@@ -155,28 +155,6 @@ void FileManager::removeEmptyDirs(const QString &path)
     }
 }
 
-// --- Recovery ---
-
-int FileManager::recoverTmpFiles()
-{
-    int count = 0;
-    QDirIterator it("data", QDir::Files, QDirIterator::Subdirectories);
-    while (it.hasNext()) {
-        it.next();
-        QString fpath = it.filePath();
-        if (fpath.endsWith(".tmp")) {
-            QString target = fpath.left(fpath.length() - 4); // remove .tmp
-            if (QFile::exists(target)) {
-                QFile::remove(target);
-            }
-            if (QFile::rename(fpath, target)) {
-                count++;
-            }
-        }
-    }
-    return count;
-}
-
 // --- Stats ---
 
 QJsonObject FileManager::getStats()

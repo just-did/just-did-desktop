@@ -413,4 +413,27 @@ Rectangle {
             }
         }
     }
+
+    // ==========================================
+    // Toast 提示（恢复失败等，1 秒后自动消失，无交互元素）
+    // ==========================================
+    Rectangle {
+        id: toast
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 12
+        visible: toastVM.message !== ""
+        color: "#80000000"
+        radius: 6
+        width: toastText.implicitWidth + 32
+        height: toastText.implicitHeight + 16
+
+        Text {
+            id: toastText
+            anchors.centerIn: parent
+            text: toastVM.message
+            color: "white"
+            font.pixelSize: 12
+        }
+    }
 }

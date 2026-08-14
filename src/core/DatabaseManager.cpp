@@ -1,4 +1,5 @@
 #include "DatabaseManager.h"
+#include "common/Constants.h"
 
 #include <QSqlQuery>
 #include <QSqlError>
@@ -197,4 +198,19 @@ QStringList DatabaseManager::getBatchDates(const QString &batchId)
         return query.value(0).toString().split(",", Qt::SkipEmptyParts);
     }
     return {};
+}
+
+QList<QPair<QString, QString>> DatabaseManager::getCoveringBatches()
+{
+    QList<QPair<QString, QString>> result;
+    QSqlQuery query(mDb);
+    query.prepare("SELECT batch_id, dates FROM pc_batch_records WHERE status=?");
+    query.addBindValue(Constants::BATCH_STATUS_COVERING);
+
+    if (query.exec()) {
+        while (query.next()) {
+            result.append({query.value(0).toString(), query.value(1).toString()});
+        }
+    }
+    return result;
 }

@@ -4,6 +4,7 @@ add_library(justdid_ui STATIC
     viewmodels/FloatingInputViewModel.cpp
     viewmodels/StorageViewModel.cpp
     viewmodels/ConnectionViewModel.cpp
+    viewmodels/ToastViewModel.cpp
     models/CalendarModel.cpp
     models/RecordListModel.cpp
     QRCodeProvider.cpp

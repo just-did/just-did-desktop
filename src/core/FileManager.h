@@ -14,7 +14,6 @@ public:
     QList<DailyRecord> readDailyFile(int year, int month, int day);
     bool writeDailyFile(int year, int month, int day, const QList<DailyRecord> &records);
     bool deleteDailyFile(int year, int month, int day);
-    int recoverTmpFiles();
     QJsonObject getStats();
 
     // 同步快照：data/{YYYY}/{MM}/{batchId}-{DD}.txt

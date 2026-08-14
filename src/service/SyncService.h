@@ -24,6 +24,9 @@ public:
     // Submit: 同步锁 → 校验批ID → 状态分支 → ZIP解析 → 两阶段合并，返回响应
     QJsonObject submit(const QByteArray &body, const QString &batchId);
 
+    // 启动恢复：补完所有「覆盖中」批次（与提交共用同步锁），返回失败批次ID列表
+    QStringList recoverPendingBatches();
+
     // Fetch: parse request JSON, fetch files, return (body, content-type)
     // Returns empty body if 404
     struct FetchResponse {
@@ -53,5 +56,9 @@ private:
     DataManager *mDataMgr;
     DatabaseManager *mDbMgr;
     ConnectionStateMachine *mStateMachine;
-    QMutex mSyncMutex;  // 全局同步处理锁
+    // 全局同步处理锁：提交与启动恢复共用（同一时刻至多一个同步操作）。
+    // 锁纪律（防死锁）：
+    //  1. 提交侧必须 tryLock 非阻塞，拿不到即返回 -5；
+    //  2. 恢复侧阻塞持锁，但持锁期间禁止任何跨线程阻塞等待。
+    QMutex mSyncMutex;
 };

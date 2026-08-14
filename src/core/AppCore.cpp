@@ -41,10 +41,6 @@ bool AppCore::init()
 
     // 4. FileManager
     mFileMgr.reset(new FileManager());
-    int recovered = mFileMgr->recoverTmpFiles();
-    if (recovered > 0) {
-        LogManager::instance()->info(QString("恢复 %1 个临时文件").arg(recovered));
-    }
     LogManager::instance()->info("文件管理器初始化完成");
 
     // 5. DataManager
