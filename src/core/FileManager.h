@@ -12,6 +12,7 @@ public:
     FileManager() = default;
 
     QList<DailyRecord> readDailyFile(int year, int month, int day);
+    bool existsDailyFile(int year, int month, int day);
     bool writeDailyFile(int year, int month, int day, const QList<DailyRecord> &records);
     bool deleteDailyFile(int year, int month, int day);
     QJsonObject getStats();

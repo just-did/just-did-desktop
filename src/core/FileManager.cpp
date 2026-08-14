@@ -97,6 +97,11 @@ QList<DailyRecord> FileManager::readDailyFile(int year, int month, int day)
     return parseContent(content);
 }
 
+bool FileManager::existsDailyFile(int year, int month, int day)
+{
+    return QFile::exists(buildPath(year, month, day));
+}
+
 bool FileManager::writeDailyFile(int year, int month, int day, const QList<DailyRecord> &records)
 {
     QString dir = buildDir(year, month);

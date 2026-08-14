@@ -224,11 +224,12 @@ DataManager::FetchResult DataManager::fetchFiles(const QList<QDate> &dates)
 {
     FetchResult result;
     for (const auto &date : dates) {
-        auto records = mFileMgr->readDailyFile(date.year(), date.month(), date.day());
-        if (!records.isEmpty()) {
-            result.files[date] = records;
-            result.notFound = false;
-        }
+        // 按文件存在性收录：文件存在即收入（空文件也收），不存在跳过
+        if (!mFileMgr->existsDailyFile(date.year(), date.month(), date.day()))
+            continue;
+
+        result.files[date] = mFileMgr->readDailyFile(date.year(), date.month(), date.day());
+        result.notFound = false;
     }
     return result;
 }

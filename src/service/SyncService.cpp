@@ -6,17 +6,17 @@
 #include "common/Constants.h"
 #include "common/ErrorCode.h"
 
-#include "SimpleZip.h"
-
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QDateTime>
 #include <QTemporaryFile>
 #include <QRegularExpression>
 #include <QMutexLocker>
+#include <ctime>
 
-// minizip-ng (ZIP 解压)
+// minizip-ng (ZIP 解压 + 打包)
 #include <mz.h>
+#include <mz_os.h>
 #include <mz_strm.h>
 #include <mz_zip.h>
 #include <mz_zip_rw.h>
@@ -325,78 +325,83 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
     auto fetchResult = mDataMgr->fetchFiles(dates);
     if (fetchResult.notFound) {
         resp.httpStatus = 404;
-        resp.errorJson["code"] = -1;
-        resp.errorJson["message"] = "文件不存在";
+        resp.errorJson["code"] = 1;
+        resp.errorJson["message"] = "无文件";
         return resp;
     }
 
-    resp.httpStatus = 200;
+    // 有文件存在：一律打包 ZIP（DEFLATE），条目路径相对 data 目录（YYYY/MM/DD.txt）
+    QTemporaryFile tempFile;
+    tempFile.setAutoRemove(true);
+    if (!tempFile.open()) {
+        resp.httpStatus = 500;
+        resp.errorJson["code"] = 1;
+        resp.errorJson["message"] = "服务器内部错误";
+        return resp;
+    }
+    QString tempPath = tempFile.fileName();
+    tempFile.close();
 
-    int count = fetchResult.files.size();
+    void *writer = nullptr;
+    mz_zip_writer_create(&writer);
+    bool ok = writer != nullptr;
+    if (ok)
+        ok = mz_zip_writer_open_file(writer, tempPath.toUtf8().constData(), 0, 0) == MZ_OK;
+    if (ok)
+        mz_zip_writer_set_compress_method(writer, MZ_COMPRESS_METHOD_DEFLATE);
 
-    if (count == 1) {
-        // Single file: return as text/plain
-        auto it = fetchResult.files.begin();
+    for (auto it = fetchResult.files.begin(); ok && it != fetchResult.files.end(); ++it) {
+        QDate date = it.key();
         const auto &records = it.value();
 
+        QString entryPath = QString("%1/%2/%3.txt")
+                                .arg(date.year())
+                                .arg(date.month(), 2, 10, QChar('0'))
+                                .arg(date.day(), 2, 10, QChar('0'));
+
+        auto sorted = records;
+        std::sort(sorted.begin(), sorted.end(), [](const DailyRecord &a, const DailyRecord &b) {
+            return a.time < b.time;
+        });
         QStringList parts;
-        for (const auto &r : records)
+        for (const auto &r : sorted)
             parts.append(r.time + "\n" + r.content);
-        QString content = parts.join("\n\n") + "\n";
+        // 空记录日期 → 空内容条目（与 FileManager::serializeContent 的空列表语义一致）
+        QByteArray content = parts.isEmpty() ? QByteArray()
+                                             : (parts.join("\n\n") + "\n").toUtf8();
 
-        resp.body = content.toUtf8();
-        resp.contentType = "text/plain; charset=utf-8";
-        resp.httpStatus = 200;
-    } else {
-        // Multiple files: return as ZIP using SimpleZipWriter (proper central directory)
-        QTemporaryFile tempFile;
-        tempFile.setAutoRemove(true);
-        if (!tempFile.open()) {
-            resp.httpStatus = 500;
-            resp.errorJson["code"] = 1;
-            resp.errorJson["message"] = "服务器内部错误";
-            return resp;
-        }
-        QString tempPath = tempFile.fileName();
-        tempFile.close();
+        QByteArray nameUtf8 = entryPath.toUtf8();
+        mz_zip_file fileInfo = {};
+        fileInfo.version_madeby = MZ_VERSION_MADEBY;
+        fileInfo.compression_method = MZ_COMPRESS_METHOD_DEFLATE;
+        fileInfo.flag = MZ_ZIP_FLAG_UTF8;
+        fileInfo.modified_date = time(nullptr);
+        fileInfo.filename = nameUtf8.constData();
+        fileInfo.filename_size = (uint16_t)nameUtf8.size();
 
-        SimpleZipWriter writer;
-        if (!writer.open(tempPath)) {
-            resp.httpStatus = 500;
-            resp.errorJson["code"] = 1;
-            resp.errorJson["message"] = "服务器内部错误";
-            return resp;
-        }
-
-        for (auto it = fetchResult.files.begin(); it != fetchResult.files.end(); ++it) {
-            QDate date = it.key();
-            const auto &records = it.value();
-
-            QString entryPath = QString("data/%1/%2/%3.txt")
-                                    .arg(date.year())
-                                    .arg(date.month(), 2, 10, QChar('0'))
-                                    .arg(date.day(), 2, 10, QChar('0'));
-
-            auto sorted = records;
-            std::sort(sorted.begin(), sorted.end(), [](const DailyRecord &a, const DailyRecord &b) {
-                return a.time < b.time;
-            });
-            QStringList parts;
-            for (const auto &r : sorted)
-                parts.append(r.time + "\n" + r.content);
-            QString content = parts.join("\n\n") + "\n";
-
-            writer.addFile(entryPath, content.toUtf8());
-        }
-        writer.close();
-
-        // Read back the temp file into response
-        tempFile.open();
-        resp.body = tempFile.readAll();
-        tempFile.close();
-        resp.contentType = "application/zip";
-        resp.httpStatus = 200;
+        // 空内容条目：传非空指针 + 长度 0，产生合法空文件条目
+        const char *data = content.isEmpty() ? "" : content.constData();
+        if (mz_zip_writer_add_buffer(writer, (void *)data, (int32_t)content.size(), &fileInfo) != MZ_OK)
+            ok = false;
     }
+
+    if (ok)
+        ok = mz_zip_writer_close(writer) == MZ_OK;
+    mz_zip_writer_delete(&writer);
+
+    if (!ok) {
+        resp.httpStatus = 500;
+        resp.errorJson["code"] = 1;
+        resp.errorJson["message"] = "服务器内部错误";
+        return resp;
+    }
+
+    // Read back the temp file into response
+    tempFile.open();
+    resp.body = tempFile.readAll();
+    tempFile.close();
+    resp.contentType = "application/zip";
+    resp.httpStatus = 200;
 
     return resp;
 }

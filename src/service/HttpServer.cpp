@@ -142,9 +142,12 @@ void HttpServer::setupRoutes()
         auto fetchResp = mSyncService->fetch(doc.object());
 
         if (fetchResp.httpStatus != 200) {
-            auto sc = fetchResp.httpStatus == 400
-                ? QHttpServerResponse::StatusCode::BadRequest
-                : QHttpServerResponse::StatusCode::NotFound;
+            // 按实际语义映射：400 → BadRequest，404 → NotFound，500 → InternalServerError
+            QHttpServerResponse::StatusCode sc = QHttpServerResponse::StatusCode::InternalServerError;
+            if (fetchResp.httpStatus == 400)
+                sc = QHttpServerResponse::StatusCode::BadRequest;
+            else if (fetchResp.httpStatus == 404)
+                sc = QHttpServerResponse::StatusCode::NotFound;
             return QHttpServerResponse("application/json",
                                        QJsonDocument(fetchResp.errorJson).toJson(QJsonDocument::Compact), sc);
         }
