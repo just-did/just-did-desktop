@@ -20,6 +20,8 @@ public:
     QList<IndexEntry> getIndexByMonth(int year, int month);
     // 按日期列表查询索引条目（按日期升序）；SQL 执行失败返回 false
     bool getIndexByDates(const QList<QDate> &dates, QList<IndexEntry> &out);
+    // 查询严格早于 threshold 的索引条目（按日期升序）；SQL 执行失败返回 false
+    bool getIndexOlderThan(const QDate &threshold, QList<IndexEntry> &out);
     bool updateWithVersion(int year, int month, int day, const QString &path, qint64 fileSize, int expectedVersion);
 
     void removeIndexEntry(int year, int month, int day);
@@ -30,6 +32,8 @@ public:
     void updateBatchStatus(const QString &batchId, const QString &status);
     QStringList getBatchDates(const QString &batchId);
     QList<QPair<QString, QString>> getCoveringBatches();   // 全部「覆盖中」批次 (batch_id, dates)
+    // 是否存在「覆盖中」批次；SQL 执行失败返回 false
+    bool hasPendingBatches(bool &out);
 
 private:
     void migrate();

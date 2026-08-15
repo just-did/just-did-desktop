@@ -32,6 +32,10 @@ public:
     QList<IndexEntry> getMonthIndex(int year, int month);
     // 按日期列表查索引条目（升序）；SQL 异常返回 InternalError
     ErrorCode getIndexForDates(const QList<QDate> &dates, QList<IndexEntry> &out);
+    // 查询严格早于 threshold 的索引条目（升序）；SQL 异常返回 InternalError
+    ErrorCode getIndexOlderThan(const QDate &threshold, QList<IndexEntry> &out);
+    // 是否存在「覆盖中」批次（SQL 异常视为 false）
+    bool hasPendingBatches();
     QList<DailyRecord> getDailyRecords(int year, int month, int day);
 
     // Management

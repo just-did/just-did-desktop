@@ -3,12 +3,13 @@
 #include <QAbstractListModel>
 #include <QList>
 #include <QDate>
+#include <QSet>
 
 class CalendarModel : public QAbstractListModel
 {
     Q_OBJECT
 public:
-    enum Roles { DayNumber = Qt::UserRole + 1, HasReport, IsCurrentMonth, IsToday, IsSelected, IsFuture };
+    enum Roles { DayNumber = Qt::UserRole + 1, HasReport, IsCurrentMonth, IsToday, IsSelected, IsFuture, IsPicked };
 
     explicit CalendarModel(QObject *parent = nullptr);
 
@@ -18,7 +19,8 @@ public:
 
     void setMonthData(int year, int month, const QList<int> &markedDays,
                       int todayYear, int todayMonth, int todayDay,
-                      int selectedYear, int selectedMonth, int selectedDay);
+                      int selectedYear, int selectedMonth, int selectedDay,
+                      const QSet<QDate> &pickedDates = {});
     void setSelectedDate(int year, int month, int day);
 
 private:
@@ -29,6 +31,7 @@ private:
         bool isToday = false;
         bool isSelected = false;
         bool isFuture = false;
+        bool isPicked = false;
     };
     QList<DayInfo> mDays;
 };

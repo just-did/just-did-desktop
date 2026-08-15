@@ -15,6 +15,7 @@ QVariant CalendarModel::data(const QModelIndex &index, int role) const
     case IsToday: return d.isToday;
     case IsSelected: return d.isSelected;
     case IsFuture: return d.isFuture;
+    case IsPicked: return d.isPicked;
     default: return {};
     }
 }
@@ -22,12 +23,14 @@ QVariant CalendarModel::data(const QModelIndex &index, int role) const
 QHash<int, QByteArray> CalendarModel::roleNames() const
 {
     return {{DayNumber, "dayNumber"}, {HasReport, "hasReport"}, {IsCurrentMonth, "isCurrentMonth"},
-            {IsToday, "isToday"}, {IsSelected, "isSelected"}, {IsFuture, "isFuture"}};
+            {IsToday, "isToday"}, {IsSelected, "isSelected"}, {IsFuture, "isFuture"},
+            {IsPicked, "isPicked"}};
 }
 
 void CalendarModel::setMonthData(int year, int month, const QList<int> &markedDays,
                                   int todayYear, int todayMonth, int todayDay,
-                                  int selectedYear, int selectedMonth, int selectedDay)
+                                  int selectedYear, int selectedMonth, int selectedDay,
+                                  const QSet<QDate> &pickedDates)
 {
     beginResetModel();
 
@@ -63,6 +66,7 @@ void CalendarModel::setMonthData(int year, int month, const QList<int> &markedDa
         d.isToday = isTodayMonth && day == todayDay;
         d.isSelected = isSelectedMonth && day == selectedDay;
         d.isFuture = QDate(year, month, day) > today;
+        d.isPicked = pickedDates.contains(QDate(year, month, day));
         mDays.append(d);
     }
 

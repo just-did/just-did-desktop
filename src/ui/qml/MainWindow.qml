@@ -253,6 +253,22 @@ Rectangle {
                             }
                         }
                     }
+
+                    // 右键唤起存储管理弹窗（前置门槛：服务已停止 + 无覆盖中批次）
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.RightButton
+                        onClicked: {
+                            if (mouse.button === Qt.RightButton) {
+                                var reason = storageCleanupVM.requestOpen(connectionVM.started)
+                                if (reason !== "") {
+                                    toastVM.show(reason)
+                                } else {
+                                    storageManagePopup.open()
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Row 3: HTTP panel (QR + status)
@@ -392,6 +408,11 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // 存储管理弹窗（右键存储区域唤起；模态，点击遮罩销毁）
+    StorageManagePopup {
+        id: storageManagePopup
     }
 
     // ==========================================

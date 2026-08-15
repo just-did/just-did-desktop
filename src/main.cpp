@@ -18,6 +18,7 @@
 #include "ui/viewmodels/TimelineViewModel.h"
 #include "ui/viewmodels/FloatingInputViewModel.h"
 #include "ui/viewmodels/StorageViewModel.h"
+#include "ui/viewmodels/StorageCleanupViewModel.h"
 #include "ui/viewmodels/ConnectionViewModel.h"
 #include "ui/viewmodels/ToastViewModel.h"
 #include "ui/models/CalendarModel.h"
@@ -61,6 +62,7 @@ int main(int argc, char *argv[])
     TimelineViewModel timelineVM(&reportService, &recordListModel);
     FloatingInputViewModel floatingInputVM(&reportService);
     StorageViewModel storageVM(&reportService);
+    StorageCleanupViewModel storageCleanupVM(&reportService);
     ToastViewModel toastVM;
     // QR code image provider
     QRCodeProvider *qrProvider = new QRCodeProvider();
@@ -83,6 +85,7 @@ int main(int argc, char *argv[])
     engine.rootContext()->setContextProperty("timelineVM", &timelineVM);
     engine.rootContext()->setContextProperty("floatingInputVM", &floatingInputVM);
     engine.rootContext()->setContextProperty("storageVM", &storageVM);
+    engine.rootContext()->setContextProperty("storageCleanupVM", &storageCleanupVM);
     engine.rootContext()->setContextProperty("toastVM", &toastVM);
     engine.rootContext()->setContextProperty("connectionVM", &connectionVM);
     engine.rootContext()->setContextProperty("calendarModel", &calendarModel);

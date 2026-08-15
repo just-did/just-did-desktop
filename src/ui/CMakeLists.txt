@@ -3,6 +3,7 @@ add_library(justdid_ui STATIC
     viewmodels/TimelineViewModel.cpp
     viewmodels/FloatingInputViewModel.cpp
     viewmodels/StorageViewModel.cpp
+    viewmodels/StorageCleanupViewModel.cpp
     viewmodels/ConnectionViewModel.cpp
     viewmodels/ToastViewModel.cpp
     models/CalendarModel.cpp

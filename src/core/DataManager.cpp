@@ -197,6 +197,17 @@ ErrorCode DataManager::getIndexForDates(const QList<QDate> &dates, QList<IndexEn
     return mDbMgr->getIndexByDates(dates, out) ? ErrorCode::Success : ErrorCode::InternalError;
 }
 
+ErrorCode DataManager::getIndexOlderThan(const QDate &threshold, QList<IndexEntry> &out)
+{
+    return mDbMgr->getIndexOlderThan(threshold, out) ? ErrorCode::Success : ErrorCode::InternalError;
+}
+
+bool DataManager::hasPendingBatches()
+{
+    bool has = false;
+    return mDbMgr->hasPendingBatches(has) && has;
+}
+
 QList<DailyRecord> DataManager::getDailyRecords(int year, int month, int day)
 {
     return mFileMgr->readDailyFile(year, month, day);

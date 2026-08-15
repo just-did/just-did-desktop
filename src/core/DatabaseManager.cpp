@@ -166,6 +166,37 @@ bool DatabaseManager::getIndexByDates(const QList<QDate> &dates, QList<IndexEntr
     return true;
 }
 
+bool DatabaseManager::getIndexOlderThan(const QDate &threshold, QList<IndexEntry> &out)
+{
+    out.clear();
+    QSqlQuery query(mDb);
+    query.prepare("SELECT year, month, day, path, file_size, version "
+                  "FROM pc_daliy_report_index "
+                  "WHERE (year < ?) OR (year = ? AND month < ?) OR (year = ? AND month = ? AND day < ?) "
+                  "ORDER BY year, month, day");
+    query.addBindValue(threshold.year());
+    query.addBindValue(threshold.year());
+    query.addBindValue(threshold.month());
+    query.addBindValue(threshold.year());
+    query.addBindValue(threshold.month());
+    query.addBindValue(threshold.day());
+
+    if (!query.exec())
+        return false;
+
+    while (query.next()) {
+        IndexEntry e;
+        e.year = query.value(0).toInt();
+        e.month = query.value(1).toInt();
+        e.day = query.value(2).toInt();
+        e.path = query.value(3).toString();
+        e.fileSize = query.value(4).toLongLong();
+        e.version = query.value(5).toInt();
+        out.append(e);
+    }
+    return true;
+}
+
 bool DatabaseManager::updateWithVersion(int year, int month, int day, const QString &path,
                                          qint64 fileSize, int expectedVersion)
 {
@@ -250,4 +281,16 @@ QList<QPair<QString, QString>> DatabaseManager::getCoveringBatches()
         }
     }
     return result;
+}
+
+bool DatabaseManager::hasPendingBatches(bool &out)
+{
+    QSqlQuery query(mDb);
+    query.prepare("SELECT COUNT(*) FROM pc_batch_records WHERE status=?");
+    query.addBindValue(Constants::BATCH_STATUS_COVERING);
+
+    if (!query.exec() || !query.next())
+        return false;
+    out = query.value(0).toInt() > 0;
+    return true;
 }
