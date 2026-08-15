@@ -3,6 +3,7 @@
 #include <QString>
 #include <QList>
 #include <QPair>
+#include <QDate>
 #include <QSqlDatabase>
 #include <optional>
 
@@ -17,6 +18,8 @@ public:
     std::optional<IndexEntry> getIndexEntry(int year, int month, int day);
     void upsertIndexEntry(int year, int month, int day, const QString &path, qint64 fileSize);
     QList<IndexEntry> getIndexByMonth(int year, int month);
+    // 按日期列表查询索引条目（按日期升序）；SQL 执行失败返回 false
+    bool getIndexByDates(const QList<QDate> &dates, QList<IndexEntry> &out);
     bool updateWithVersion(int year, int month, int day, const QString &path, qint64 fileSize, int expectedVersion);
 
     void removeIndexEntry(int year, int month, int day);

@@ -192,6 +192,11 @@ QList<IndexEntry> DataManager::getMonthIndex(int year, int month)
     return mDbMgr->getIndexByMonth(year, month);
 }
 
+ErrorCode DataManager::getIndexForDates(const QList<QDate> &dates, QList<IndexEntry> &out)
+{
+    return mDbMgr->getIndexByDates(dates, out) ? ErrorCode::Success : ErrorCode::InternalError;
+}
+
 QList<DailyRecord> DataManager::getDailyRecords(int year, int month, int day)
 {
     return mFileMgr->readDailyFile(year, month, day);

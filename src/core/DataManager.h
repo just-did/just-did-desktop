@@ -30,6 +30,8 @@ public:
 
     // Queries
     QList<IndexEntry> getMonthIndex(int year, int month);
+    // 按日期列表查索引条目（升序）；SQL 异常返回 InternalError
+    ErrorCode getIndexForDates(const QList<QDate> &dates, QList<IndexEntry> &out);
     QList<DailyRecord> getDailyRecords(int year, int month, int day);
 
     // Management

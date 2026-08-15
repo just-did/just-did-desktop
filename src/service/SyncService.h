@@ -28,15 +28,19 @@ public:
     // 启动恢复：补完所有「覆盖中」批次（与提交共用同步锁），返回失败批次ID列表
     QStringList recoverPendingBatches();
 
-    // Fetch: parse request JSON, fetch files, return (body, content-type)
-    // Returns empty body if 404
+    // Fetch / FetchIndex: 解析请求 JSON 后返回响应（body + content-type）。
+    // 200 时 body 为有效载荷（fetch 为 ZIP，fetchIndex 为 JSON）；
+    // 非 200 时 errorJson 有效。
     struct FetchResponse {
         QByteArray body;
         QString contentType;
-        int httpStatus = 404;   // 200, 400, or 404
+        int httpStatus = 404;   // 200, 400, 404, 500
         QJsonObject errorJson;  // set when httpStatus != 200
     };
     FetchResponse fetch(const QJsonObject &request);
+
+    // Fetch index: 请求格式与 fetch 一致，返回 pc_daliy_report_index 条目列表（只读，不持锁）
+    FetchResponse fetchIndex(const QJsonObject &request);
 
     // Health
     QJsonObject healthCheck();
@@ -58,6 +62,7 @@ private:
     QJsonObject submitLocked(const QByteArray &body, const QString &batchId);
     StagingParse parseStagingZip(const QByteArray &zipData, const QString &batchId);
     QJsonObject buildUpdatedIndexResponse(const QString &batchId, const QString &message) const;
+    QJsonObject indexEntryToJson(const IndexEntry &e) const;
     QList<QDate> parseDates(const QJsonObject &request, QString &errorMsg) const;
 
     DataManager *mDataMgr;

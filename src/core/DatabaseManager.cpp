@@ -129,6 +129,43 @@ QList<IndexEntry> DatabaseManager::getIndexByMonth(int year, int month)
     return result;
 }
 
+bool DatabaseManager::getIndexByDates(const QList<QDate> &dates, QList<IndexEntry> &out)
+{
+    out.clear();
+    if (dates.isEmpty())
+        return true;
+
+    QStringList placeholders;
+    for (const auto &date : dates)
+        placeholders.append("(?,?,?)");
+
+    QSqlQuery query(mDb);
+    query.prepare("SELECT year, month, day, path, file_size, version "
+                  "FROM pc_daliy_report_index "
+                  "WHERE (year, month, day) IN (" + placeholders.join(",") + ") "
+                  "ORDER BY year, month, day");
+    for (const auto &date : dates) {
+        query.addBindValue(date.year());
+        query.addBindValue(date.month());
+        query.addBindValue(date.day());
+    }
+
+    if (!query.exec())
+        return false;
+
+    while (query.next()) {
+        IndexEntry e;
+        e.year = query.value(0).toInt();
+        e.month = query.value(1).toInt();
+        e.day = query.value(2).toInt();
+        e.path = query.value(3).toString();
+        e.fileSize = query.value(4).toLongLong();
+        e.version = query.value(5).toInt();
+        out.append(e);
+    }
+    return true;
+}
+
 bool DatabaseManager::updateWithVersion(int year, int month, int day, const QString &path,
                                          qint64 fileSize, int expectedVersion)
 {

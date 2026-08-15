@@ -154,6 +154,38 @@ void HttpServer::setupRoutes()
 
         return QHttpServerResponse(fetchResp.contentType.toUtf8(), fetchResp.body);
     });
+
+    // POST /sync/fetch-index
+    mServer->route("/sync/fetch-index", [this](const QHttpServerRequest &request) {
+        if (request.method() != QHttpServerRequest::Method::Post) {
+            return QHttpServerResponse(QHttpServerResponse::StatusCode::MethodNotAllowed);
+        }
+
+        QJsonDocument doc = QJsonDocument::fromJson(request.body());
+        if (!doc.isObject()) {
+            QJsonObject err;
+            err["code"] = -3;
+            err["message"] = "请求体不是有效 JSON";
+            return QHttpServerResponse("application/json",
+                                       QJsonDocument(err).toJson(QJsonDocument::Compact),
+                                       QHttpServerResponse::StatusCode::BadRequest);
+        }
+
+        auto indexResp = mSyncService->fetchIndex(doc.object());
+
+        if (indexResp.httpStatus != 200) {
+            // 按实际语义映射：400 → BadRequest，404 → NotFound，500 → InternalServerError
+            QHttpServerResponse::StatusCode sc = QHttpServerResponse::StatusCode::InternalServerError;
+            if (indexResp.httpStatus == 400)
+                sc = QHttpServerResponse::StatusCode::BadRequest;
+            else if (indexResp.httpStatus == 404)
+                sc = QHttpServerResponse::StatusCode::NotFound;
+            return QHttpServerResponse("application/json",
+                                       QJsonDocument(indexResp.errorJson).toJson(QJsonDocument::Compact), sc);
+        }
+
+        return QHttpServerResponse(indexResp.contentType.toUtf8(), indexResp.body);
+    });
 }
 
 static bool isVirtualAdapter(const QNetworkInterface &iface)

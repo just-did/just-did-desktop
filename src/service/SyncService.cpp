@@ -28,19 +28,24 @@ SyncService::SyncService(DataManager *dataMgr, DatabaseManager *dbMgr, QObject *
 
 // --- Submit ---
 
+// 索引条目序列化：submit 的 updated_index 与 fetch-index 的 index 共用，保证两处条目格式一致
+QJsonObject SyncService::indexEntryToJson(const IndexEntry &e) const
+{
+    QJsonObject obj;
+    obj["year"] = e.year;
+    obj["month"] = e.month;
+    obj["day"] = e.day;
+    obj["path"] = e.path;
+    obj["file_size"] = e.fileSize;
+    return obj;
+}
+
 QJsonObject SyncService::buildUpdatedIndexResponse(const QString &batchId, const QString &message) const
 {
     auto index = mDataMgr->getUpdatedIndexForBatch(batchId);
     QJsonArray idxArr;
-    for (const auto &e : index) {
-        QJsonObject obj;
-        obj["year"] = e.year;
-        obj["month"] = e.month;
-        obj["day"] = e.day;
-        obj["path"] = e.path;
-        obj["file_size"] = e.fileSize;
-        idxArr.append(obj);
-    }
+    for (const auto &e : index)
+        idxArr.append(indexEntryToJson(e));
 
     QJsonObject resp;
     resp["code"] = 0;
@@ -403,6 +408,52 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
     resp.contentType = "application/zip";
     resp.httpStatus = 200;
 
+    return resp;
+}
+
+// --- Fetch index ---
+
+SyncService::FetchResponse SyncService::fetchIndex(const QJsonObject &request)
+{
+    FetchResponse resp;
+
+    QString errorMsg;
+    QList<QDate> dates = parseDates(request, errorMsg);
+    if (dates.isEmpty()) {
+        resp.httpStatus = 400;
+        resp.errorJson["code"] = errorMsg.contains("超") ? -2 : -3;
+        resp.errorJson["message"] = errorMsg.isEmpty() ? "参数无效" : errorMsg;
+        return resp;
+    }
+
+    // 按索引表查询：仅收录索引有条目的日期（升序），不做磁盘校验
+    QList<IndexEntry> entries;
+    if (mDataMgr->getIndexForDates(dates, entries) == ErrorCode::InternalError) {
+        resp.httpStatus = 500;
+        resp.errorJson["code"] = -1;
+        resp.errorJson["message"] = "服务器内部错误";
+        return resp;
+    }
+
+    if (entries.isEmpty()) {
+        resp.httpStatus = 404;
+        resp.errorJson["code"] = 1;
+        resp.errorJson["message"] = "无文件";
+        return resp;
+    }
+
+    QJsonArray idxArr;
+    for (const auto &e : entries)
+        idxArr.append(indexEntryToJson(e));
+
+    QJsonObject success;
+    success["code"] = 0;
+    success["message"] = "成功";
+    success["index"] = idxArr;
+
+    resp.body = QJsonDocument(success).toJson(QJsonDocument::Compact);
+    resp.contentType = "application/json";
+    resp.httpStatus = 200;
     return resp;
 }
 
