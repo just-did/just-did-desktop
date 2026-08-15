@@ -6,6 +6,8 @@ add_subdirectory(ui)
 
 add_executable(JustDid WIN32
     main.cpp
+    app.rc
+    resources.qrc
 )
 
 target_link_libraries(JustDid PRIVATE

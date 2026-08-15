@@ -1,13 +1,5 @@
 <RCC>
     <qresource prefix="/">
-        <file>ui/qml/main.qml</file>
-        <file>ui/qml/MainWindow.qml</file>
-        <file>ui/qml/CalendarView.qml</file>
-        <file>ui/qml/TimelineView.qml</file>
-        <file>ui/qml/FloatingWindow.qml</file>
-        <file>ui/qml/StorageView.qml</file>
-        <file>ui/qml/StatusBar.qml</file>
-        <file>ui/qml/components/RecordItem.qml</file>
-        <file>ui/qml/components/ConfirmDialog.qml</file>
+        <file alias="app.ico">assets/app.ico</file>
     </qresource>
 </RCC>

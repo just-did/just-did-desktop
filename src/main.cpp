@@ -8,6 +8,7 @@
 #include <QDate>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QIcon>
 
 #include "core/AppCore.h"
 #include "core/DataManager.h"
@@ -169,6 +170,7 @@ int main(int argc, char *argv[])
     for (auto *obj : windows) {
         auto *win = qobject_cast<QQuickWindow *>(obj);
         if (win) {
+            win->setIcon(QIcon(":/app.ico"));   // 窗口/任务栏图标（qrc 内嵌）
             win->setColor(QColor("#ffffff"));
             // Show after one event loop cycle to ensure QML is fully rendered
             QTimer::singleShot(0, win, &QQuickWindow::show);
