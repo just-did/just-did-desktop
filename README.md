@@ -157,7 +157,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.0.0]
 
 ## 许可证
 
-本项目以 [Apache License 2.0](LICENSE) 开源，版权归 zyipeng 所有。应用图标为作者自制。
+本项目以 [Apache License 2.0](LICENSE) 开源，版权归 zhouyp001 所有。应用图标为作者自制。
 
 本项目使用以下第三方组件，其版权归各自所有者：
 
