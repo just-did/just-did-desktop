@@ -19,8 +19,8 @@ jobs:
         with:
           version: '6.8.3'
           arch: 'win64_msvc2022_64'
-          modules: 'qtbase qtdeclarative'
-          cached: 'true'
+          archives: 'qtbase qtdeclarative'
+          cache: 'true'
 
       - name: Cache FetchContent deps
         uses: actions/cache@v4
@@ -47,8 +47,8 @@ jobs:
         with:
           version: '6.8.3'
           arch: 'win64_msvc2022_64'
-          modules: 'qtbase'
-          cached: 'true'
+          archives: 'qtbase'
+          cache: 'true'
 
       - name: Configure QRCodeTest
         shell: pwsh
