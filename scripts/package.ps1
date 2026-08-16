@@ -13,8 +13,53 @@ $exe = Join-Path $releaseDir "JustDid.exe"
 $distDir = Join-Path $repo "dist"
 $staging = Join-Path $distDir "JustDid_v$Version"
 
-$cmake = "C:/Program Files/Microsoft Visual Studio/2022/Community/Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
-$windeployqt = "D:/Qt/6.8.3/msvc2022_64/bin/windeployqt.exe"
+# --- Tool discovery ---------------------------------------------------------
+# Priority: env var override (JUSTDID_CMAKE / JUSTDID_WINDEPLOYQT) > auto probe
+
+function Find-CMakeExecutable {
+    $candidates = @()
+    if ($env:JUSTDID_CMAKE) { $candidates += $env:JUSTDID_CMAKE }
+
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio/Installer/vswhere.exe"
+    if (Test-Path $vswhere) {
+        $found = & $vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -find "Common7/IDE/CommonExtensions/Microsoft/CMake/CMake/bin/cmake.exe"
+        foreach ($f in $found) { if (Test-Path $f) { $candidates += $f } }
+    }
+
+    $cmd = Get-Command cmake -ErrorAction SilentlyContinue
+    if ($cmd) { $candidates += $cmd.Source }
+
+    foreach ($c in $candidates) { if (Test-Path $c) { return $c } }
+    throw "cmake not found. Set env var JUSTDID_CMAKE, install the VS2022 CMake component, or add cmake to PATH."
+}
+
+function Find-WindeployqtExecutable {
+    $candidates = @()
+    if ($env:JUSTDID_WINDEPLOYQT) { $candidates += $env:JUSTDID_WINDEPLOYQT }
+
+    # Qt-installed windeployqt first: PATH may expose a mismatched Qt
+    # (e.g. Anaconda's), which cannot deploy this project's msvc2022_64 build.
+    foreach ($root in @("C:/Qt", "D:/Qt", "C:/Qt6", "D:/Qt6")) {
+        if (-not (Test-Path $root)) { continue }
+        $kits = Get-ChildItem $root -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match "^6\.\d+(\.\d+)*$" } |
+            Sort-Object { [version] $_.Name } -Descending
+        foreach ($kit in $kits) {
+            $exe = Join-Path $kit.FullName "msvc2022_64/bin/windeployqt.exe"
+            if (Test-Path $exe) { $candidates += $exe }
+        }
+    }
+
+    $cmd = Get-Command windeployqt -ErrorAction SilentlyContinue
+    if ($cmd) { $candidates += $cmd.Source }
+
+    foreach ($c in $candidates) { if (Test-Path $c) { return $c } }
+    throw "windeployqt not found. Set env var JUSTDID_WINDEPLOYQT or install a Qt 6 msvc2022_64 kit under C:/Qt or D:/Qt."
+}
+
+$cmake = Find-CMakeExecutable
+$windeployqt = Find-WindeployqtExecutable
 $qmldir = Join-Path $repo "src\ui\qml"
 
 if (-not (Test-Path $exe)) {
