@@ -11,8 +11,8 @@ build/
 dist/
 
 # Runtime generated
-config.yml
-just_do.db
+/config.yml
+/just_do.db
 logs/
 data/
 qt_debug.log
