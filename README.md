@@ -115,7 +115,7 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.0.0]
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/health` | GET | 存活探测，手机端每 15s 调一次，无状态副作用 |
+| `/health` | GET | 存活探测，手机端每 60s 调一次，无状态副作用 |
 | `/sync/submit` | POST | 接收手机端 ZIP 批数据，两阶段合并入本地日报文件 |
 | `/sync/fetch` | POST | 按日期列表/范围返回日报内容 ZIP |
 | `/sync/fetch-index` | POST | 按日期列表/范围返回索引条目（仅路径与大小，不含内容） |
