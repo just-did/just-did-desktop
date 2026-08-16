@@ -16,6 +16,8 @@ just_do.db
 logs/
 data/
 qt_debug.log
+qr_debug.png
+qr_test_output.png
 
 # Python
 __pycache__/
