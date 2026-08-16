@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtbase qtdeclarative'
+          cached: 'true'
+
+      - name: Cache FetchContent deps
+        uses: actions/cache@v4
+        with:
+          path: build/_deps
+          key: ${{ runner.os }}-deps-${{ hashFiles('CMakeLists.txt', 'src/**/CMakeLists.txt') }}
+          restore-keys: ${{ runner.os }}-deps-
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -B build -S . -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=$env:Qt6_DIR
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release
+
+  qr-test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.8.3'
+          arch: 'win64_msvc2022_64'
+          modules: 'qtbase'
+          cached: 'true'
+
+      - name: Configure QRCodeTest
+        shell: pwsh
+        run: cmake -B test/test_qr/build -S test/test_qr -G "Visual Studio 17 2022" -A x64 -DCMAKE_PREFIX_PATH=$env:Qt6_DIR
+
+      - name: Build QRCodeTest
+        shell: pwsh
+        run: cmake --build test/test_qr/build --config Release
+
+      - name: Run QRCodeTest
+        shell: pwsh
+        run: ./test/test_qr/build/Release/QRCodeTest.exe

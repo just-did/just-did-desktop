@@ -1,0 +1,50 @@
+name: Bug 报告
+description: 报告一个缺陷
+title: "[Bug] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告问题。请尽量填写以下信息，便于快速定位。
+  - type: textarea
+    id: desc
+    attributes:
+      label: 问题描述
+      description: 发生了什么？预期应该是什么？
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: 复现步骤
+      placeholder: |
+        1. 打开应用...
+        2. 点击...
+        3. 观察到...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志（可选）
+      description: 粘贴 qt_debug.log（exe 同目录）或 logs/just-did.log 中的相关片段。日志只记录程序运行信息，不含日报内容，可放心粘贴。
+  - type: dropdown
+    id: os
+    attributes:
+      label: 操作系统
+      options: [Windows 10, Windows 11, 其他]
+    validations:
+      required: true
+  - type: input
+    id: build
+    attributes:
+      label: 版本 / 构建方式
+      description: 例如 v1.0.0 便携包，或自行构建（含 Qt 版本）
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: 自查
+      options:
+        - label: 已确认问题可稳定复现
+        - label: 已搜索确认没有相同的 issue
