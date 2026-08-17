@@ -43,6 +43,9 @@ public:
     bool clearDateRange(const QDate &start, const QDate &end);
     QJsonObject getStorageStats();
 
+    // 相对形态路径（备份 zip 条目名等对外约定使用，格式由 FileManager 一处生成）
+    QString buildRelativePath(int year, int month, int day);
+
     struct FetchResult {
         bool notFound = true;
         QMap<QDate, QList<DailyRecord>> files;

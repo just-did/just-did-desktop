@@ -79,8 +79,9 @@ if (Test-Path $staging) { Remove-Item $staging -Recurse -Force }
 New-Item -ItemType Directory -Path $staging | Out-Null
 Copy-Item (Join-Path $releaseDir "*") -Destination $staging -Recurse
 
-# Exclude developer runtime data (privacy data and local config) and debug noise
-$junk = @("config.yml", "just_do.db", "qt_debug.log", "qr_debug.png", "data", "logs", "qmltooling")
+# Exclude developer runtime data (privacy data and local config) and debug noise.
+# "just-did-data" is the current user data root; "data" and "just_do.db" stay for legacy leftovers.
+$junk = @("config.yml", "just_do.db", "qt_debug.log", "qr_debug.png", "data", "logs", "qmltooling", "just-did-data")
 foreach ($name in $junk) {
     $path = Join-Path $staging $name
     if (Test-Path $path) { Remove-Item $path -Recurse -Force }

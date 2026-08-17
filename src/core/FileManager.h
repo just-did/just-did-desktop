@@ -9,7 +9,7 @@
 class FileManager
 {
 public:
-    FileManager() = default;
+    explicit FileManager(const QString &dataRoot);
 
     QList<DailyRecord> readDailyFile(int year, int month, int day);
     bool existsDailyFile(int year, int month, int day);
@@ -17,17 +17,26 @@ public:
     bool deleteDailyFile(int year, int month, int day);
     QJsonObject getStats();
 
+    // 相对形态（data/YYYY/MM/DD.txt）：索引存储、API 透传、备份 zip 条目名
+    QString buildRelativePath(int year, int month, int day) const;
+    // 绝对形态（{dataRoot}/data/YYYY/MM/DD.txt）：磁盘 IO
+    QString buildAbsolutePath(int year, int month, int day) const;
+    QString buildTmpPath(int year, int month, int day) const;
+    // 按索引 path 解析物理路径（{dataRoot}/ + index.path）：索引驱动读取的唯一入口
+    QString resolveIndexPath(const QString &indexPath) const;
+
     // 同步快照：data/{YYYY}/{MM}/{batchId}-{DD}.txt
-    static QString buildSnapshotPath(const QString &batchId, int year, int month, int day);
-    static void removeSnapshot(const QString &batchId, int year, int month, int day);
+    QString buildSnapshotPath(const QString &batchId, int year, int month, int day) const;
+    void removeSnapshot(const QString &batchId, int year, int month, int day);
 
     // 解析日报/暂存文件文本（\n\n 分块，首行时间，块内多行内容）
     static QList<DailyRecord> parseContent(const QString &text);
 
 private:
-    QString buildPath(int year, int month, int day) const;
-    QString buildTmpPath(int year, int month, int day) const;
     QString buildDir(int year, int month) const;
+    QString dataDir() const;
     void removeEmptyDirs(const QString &path);
     QString serializeContent(const QList<DailyRecord> &records) const;
+
+    const QString mDataRoot;
 };

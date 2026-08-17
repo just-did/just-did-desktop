@@ -28,8 +28,9 @@
 │                ▼                         │
 │  ┌──────────────────────────┐           │
 │  │       本地存储             │           │
-│  │  data/YYYY/MM/DD.txt     │           │
-│  │  just_do.db (索引)        │           │
+│  │  just-did-data/ (数据根)  │           │
+│  │    data/YYYY/MM/DD.txt   │           │
+│  │    just_do.db (索引)      │           │
 │  └────────────┬─────────────┘           │
 │               │                          │
 │  ┌────────────┴─────────────┐           │
@@ -104,7 +105,7 @@ cmake --build build --config Release
 powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.0.0]
 ```
 
-四步流水线：编译 → windeployqt 部署 Qt 运行库 → 组装暂存目录（自动剔除 `config.yml`、`just_do.db`、`data/`、`logs/` 等运行时脏数据）→ 压缩。产物为 `dist/JustDid_v<版本>_portable.zip`，解压即用。
+四步流水线：编译 → windeployqt 部署 Qt 运行库 → 组装暂存目录（自动剔除 `config.yml`、`just-did-data/`、`just_do.db`、`data/`、`logs/` 等运行时脏数据）→ 压缩。产物为 `dist/JustDid_v<版本>_portable.zip`，解压即用。
 
 - 版本号需与 `src/app.rc` 的 VERSIONINFO 同步修改
 - 打包工具路径自动探测（VS 内置 CMake 经 vswhere 定位、Qt 套件在常见目录扫描取最高版本），也可用环境变量显式指定：`JUSTDID_CMAKE`、`JUSTDID_WINDEPLOYQT`
@@ -143,14 +144,16 @@ powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.0.0]
 
 ```
 {应用根目录}/
-  data/
-    {YYYY}/{MM}/{DD}.txt   # 日报内容，UTF-8
+  just-did-data/           # 用户数据根（默认名，config.yml 的 data-root 可配置为任意路径）
+    data/
+      {YYYY}/{MM}/{DD}.txt # 日报内容，UTF-8
+    just_do.db             # SQLite 索引
   logs/
     just-did.log           # 运行日志（4MB 滚动）
-  just_do.db               # SQLite 索引
-  config.yml               # 配置文件（端口、窗口位置等）
+  config.yml               # 配置文件（端口、窗口位置、data-root 等）
 ```
 
+- 数据根 `data-root` 配置：默认 `{应用目录}/just-did-data`，可指向任意目录（相对路径按应用目录解析、绝对路径原样）；db 与日报同根管理
 - 日报文件格式：`HH:MM` 开头的时间块，块内多条记录直接换行，块间空行分隔；记录按时间递增排序
 - SQLite 仅存索引：日历索引表（日期、路径、大小、乐观锁版本）与同步批次表（批 ID、受影响日期、状态）；**日历视图只查索引，点击具体日期才读文件**，内容与索引分离
 - **隐私声明：所有数据只保存在你自己的电脑上**，应用不包含任何数据上传逻辑

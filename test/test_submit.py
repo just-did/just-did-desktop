@@ -28,6 +28,7 @@ import argparse
 import io
 import json
 import os
+import re
 import sqlite3
 import sys
 import uuid
@@ -162,7 +163,7 @@ def scenario_oversize(host, port):
 
 
 def find_app_root(cli_root):
-    """定位 just_do.db 所在目录（exe 启动目录）"""
+    """定位 exe 启动目录（config.yml / just-did-data 所在目录）"""
     candidates = []
     if cli_root:
         candidates.append(os.path.abspath(cli_root))
@@ -171,9 +172,29 @@ def find_app_root(cli_root):
     candidates.append(os.path.abspath(os.path.join(script_dir, "..", "build", "src", "Release")))
     candidates.append(os.getcwd())
     for c in candidates:
-        if os.path.exists(os.path.join(c, "just_do.db")):
+        if os.path.exists(os.path.join(c, "config.yml")) or os.path.exists(os.path.join(c, "just-did-data")):
             return c
     return candidates[0]
+
+
+def resolve_data_root(app_root):
+    """按应用同款规则解析数据根：config.yml 的 data-root（相对按 app-root 解析、绝对原样）
+    → 默认 {app-root}/just-did-data"""
+    config_path = os.path.join(app_root, "config.yml")
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r"^data-root:\s*(.+?)\s*$", line)
+                if m:
+                    value = m.group(1).strip().strip("\"'")
+                    if value:
+                        if os.path.isabs(value):
+                            return value
+                        return os.path.normpath(os.path.join(app_root, value))
+                    break
+    except OSError:
+        pass
+    return os.path.join(app_root, "just-did-data")
 
 
 def scenario_resume(host, port, app_root):
@@ -183,7 +204,8 @@ def scenario_resume(host, port, app_root):
 
     # 1. 预置快照文件 data/YYYY/MM/{batchId}-{DD}.txt
     y, m, d = TEST_DATE_3[:4], TEST_DATE_3[4:6], TEST_DATE_3[6:8]
-    snap_dir = os.path.join(app_root, "data", y, m)
+    data_root = resolve_data_root(app_root)
+    snap_dir = os.path.join(data_root, "data", y, m)
     os.makedirs(snap_dir, exist_ok=True)
     snap_path = os.path.join(snap_dir, f"{batch_id}-{d}.txt")
     with open(snap_path, "w", encoding="utf-8", newline="\n") as f:
@@ -191,7 +213,7 @@ def scenario_resume(host, port, app_root):
     print(f"       已预置快照: {snap_path}")
 
     # 2. 预置批次记录 status=覆盖中
-    db_path = os.path.join(app_root, "just_do.db")
+    db_path = os.path.join(data_root, "just_do.db")
     conn = sqlite3.connect(db_path, timeout=5)
     try:
         conn.execute(
@@ -208,7 +230,7 @@ def scenario_resume(host, port, app_root):
     ok = check("resume 覆盖中续跑", s, j, 200, 0)
 
     # 4. 校验：正式日报文件应为快照内容，快照应已被 rename 消耗
-    target_path = os.path.join(app_root, "data", y, m, f"{d}.txt")
+    target_path = os.path.join(data_root, "data", y, m, f"{d}.txt")
     if os.path.exists(target_path):
         with open(target_path, encoding="utf-8") as f:
             content = f.read()
@@ -242,7 +264,7 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--scenario", choices=["all"] + list(SCENARIOS), default="all")
     parser.add_argument("--app-root", default=None,
-                        help="exe 启动目录（just_do.db 与 data/ 所在位置），resume 场景需要")
+                        help="exe 启动目录（config.yml / just-did-data 所在位置），resume 场景需要")
     args = parser.parse_args()
 
     app_root = find_app_root(args.app_root)

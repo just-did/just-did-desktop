@@ -16,6 +16,9 @@ public:
     int port() const;
     void setPort(int port);
 
+    QString dataRoot() const;
+    void setDataRoot(const QString &root);
+
     QPoint floatingWindowPosition() const;
     void setFloatingWindowPosition(const QPoint &pos);
     QSize mainWindowSize() const;
@@ -30,4 +33,5 @@ private:
     int mPort = 18080;
     QPoint mFloatingWindowPos{100, 200};
     QSize mMainWindowSize{800, 600};
+    QString mDataRoot = "just-did-data";
 };

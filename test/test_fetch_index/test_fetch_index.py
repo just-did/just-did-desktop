@@ -17,12 +17,13 @@ JustDid /sync/fetch-index 接口测试脚本（add-fetch-index-api 变更验证�
   badparam  参数错误 → 400 code=-2/-3
   dbonly    预置 file_size=0 的索引行（不建磁盘文件，跑完删除）→ 仍返回该条目，验证 DB 为准
 
-注意：dbonly 场景会临时在 just_do.db 的 pc_daliy_report_index 表中插入并删除一行。
+注意：dbonly 场景会临时在数据根下 just_do.db 的 pc_daliy_report_index 表中插入并删除一行。
 """
 
 import argparse
 import json
 import os
+import re
 import sqlite3
 import sys
 import http.client
@@ -54,7 +55,7 @@ def fetch_index_req(dates, host, port):
 
 
 def db_query(app_root, sql, params=()):
-    conn = sqlite3.connect(os.path.join(app_root, "just_do.db"), timeout=5)
+    conn = sqlite3.connect(os.path.join(resolve_data_root(app_root), "just_do.db"), timeout=5)
     try:
         return conn.execute(sql, params).fetchall()
     finally:
@@ -62,7 +63,7 @@ def db_query(app_root, sql, params=()):
 
 
 def db_execute(app_root, sql, params=()):
-    conn = sqlite3.connect(os.path.join(app_root, "just_do.db"), timeout=5)
+    conn = sqlite3.connect(os.path.join(resolve_data_root(app_root), "just_do.db"), timeout=5)
     try:
         conn.execute(sql, params)
         conn.commit()
@@ -190,7 +191,7 @@ SCENARIOS = {
 
 
 def find_app_root(cli_root):
-    """定位 just_do.db 所在目录（exe 启动目录）"""
+    """定位 exe 启动目录（config.yml / just-did-data 所在目录）"""
     candidates = []
     if cli_root:
         candidates.append(os.path.abspath(cli_root))
@@ -199,9 +200,29 @@ def find_app_root(cli_root):
         os.path.join(script_dir, "..", "..", "build", "src", "Release")))
     candidates.append(os.getcwd())
     for c in candidates:
-        if os.path.exists(os.path.join(c, "just_do.db")):
+        if os.path.exists(os.path.join(c, "config.yml")) or os.path.exists(os.path.join(c, "just-did-data")):
             return c
     return candidates[0]
+
+
+def resolve_data_root(app_root):
+    """按应用同款规则解析数据根：config.yml 的 data-root（相对按 app-root 解析、绝对原样）
+    → 默认 {app-root}/just-did-data"""
+    config_path = os.path.join(app_root, "config.yml")
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r"^data-root:\s*(.+?)\s*$", line)
+                if m:
+                    value = m.group(1).strip().strip("\"'")
+                    if value:
+                        if os.path.isabs(value):
+                            return value
+                        return os.path.normpath(os.path.join(app_root, value))
+                    break
+    except OSError:
+        pass
+    return os.path.join(app_root, "just-did-data")
 
 
 def main():
@@ -216,7 +237,7 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--scenario", choices=["all"] + list(SCENARIOS), default="all")
     parser.add_argument("--app-root", default=None,
-                        help="exe 启动目录（just_do.db 所在位置），DB 比对与 dbonly 场景需要")
+                        help="exe 启动目录（config.yml / just-did-data 所在位置），DB 比对与 dbonly 场景需要")
     args = parser.parse_args()
 
     app_root = find_app_root(args.app_root)

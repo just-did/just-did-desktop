@@ -35,12 +35,9 @@ ErrorCode DataManager::addRecord(int year, int month, int day,
         return a.time < b.time;
     });
 
-    // Build path
-    QString targetPath = QString("data/%1/%2/%3.txt")
-                             .arg(year)
-                             .arg(month, 2, 10, QChar('0'))
-                             .arg(day, 2, 10, QChar('0'));
-    QString tmpPath = targetPath + ".tmp";
+    // Build paths（路径唯一入口：经 FileManager 构建）
+    QString targetPath = mFileMgr->buildAbsolutePath(year, month, day);
+    QString tmpPath = mFileMgr->buildTmpPath(year, month, day);
 
     // Write to tmp file only (don't rename yet)
     QDir().mkpath(QFileInfo(tmpPath).absolutePath());
@@ -62,13 +59,14 @@ ErrorCode DataManager::addRecord(int year, int month, int day,
 
     // Optimistic lock update
     if (existing.has_value()) {
-        if (!mDbMgr->updateWithVersion(year, month, day, targetPath, fileSize, expectedVersion)) {
+        if (!mDbMgr->updateWithVersion(year, month, day, mFileMgr->buildRelativePath(year, month, day),
+                                       fileSize, expectedVersion)) {
             // Version conflict - discard tmp, original file untouched
             QFile::remove(tmpPath);
             return ErrorCode::VersionConflict;
         }
     } else {
-        mDbMgr->upsertIndexEntry(year, month, day, targetPath, fileSize);
+        mDbMgr->upsertIndexEntry(year, month, day, mFileMgr->buildRelativePath(year, month, day), fileSize);
     }
 
     // Now safe to atomically replace the target file
@@ -120,7 +118,7 @@ ErrorCode DataManager::mergeRecords(const QMap<QDate, QList<DailyRecord>> &recor
             }
             QString content = parts.join("\n\n") + "\n";
 
-            QString snapshotPath = FileManager::buildSnapshotPath(batchId, date.year(), date.month(), date.day());
+            QString snapshotPath = mFileMgr->buildSnapshotPath(batchId, date.year(), date.month(), date.day());
             QDir().mkpath(QFileInfo(snapshotPath).absolutePath());
             QFile snapshotFile(snapshotPath);
             if (!snapshotFile.open(QIODevice::WriteOnly | QIODevice::Text)) {
@@ -145,17 +143,14 @@ ErrorCode DataManager::mergeRecords(const QMap<QDate, QList<DailyRecord>> &recor
 ErrorCode DataManager::coverBatch(const QString &batchId, const QList<QDate> &dates)
 {
     for (const auto &date : dates) {
-        QString snapshotPath = FileManager::buildSnapshotPath(batchId, date.year(), date.month(), date.day());
+        QString snapshotPath = mFileMgr->buildSnapshotPath(batchId, date.year(), date.month(), date.day());
         if (!QFile::exists(snapshotPath)) {
             // 快照缺失 = 该日已 rename 完成（断点续跑）
             continue;
         }
 
         qint64 fileSize = QFileInfo(snapshotPath).size();
-        QString targetPath = QString("data/%1/%2/%3.txt")
-                                 .arg(date.year())
-                                 .arg(date.month(), 2, 10, QChar('0'))
-                                 .arg(date.day(), 2, 10, QChar('0'));
+        QString targetPath = mFileMgr->buildAbsolutePath(date.year(), date.month(), date.day());
 
         QFile::remove(targetPath);
         if (!QFile::rename(snapshotPath, targetPath)) {
@@ -163,7 +158,8 @@ ErrorCode DataManager::coverBatch(const QString &batchId, const QList<QDate> &da
         }
 
         // rename 后更新索引，保证索引反映真实文件
-        mDbMgr->upsertIndexEntry(date.year(), date.month(), date.day(), targetPath, fileSize);
+        mDbMgr->upsertIndexEntry(date.year(), date.month(), date.day(),
+                                 mFileMgr->buildRelativePath(date.year(), date.month(), date.day()), fileSize);
         emit dataChanged(date.year(), date.month(), date.day());
     }
 
@@ -234,6 +230,11 @@ bool DataManager::clearDateRange(const QDate &start, const QDate &end)
 QJsonObject DataManager::getStorageStats()
 {
     return mFileMgr->getStats();
+}
+
+QString DataManager::buildRelativePath(int year, int month, int day)
+{
+    return mFileMgr->buildRelativePath(year, month, day);
 }
 
 DataManager::FetchResult DataManager::fetchFiles(const QList<QDate> &dates)

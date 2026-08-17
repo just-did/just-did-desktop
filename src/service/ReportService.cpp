@@ -83,10 +83,7 @@ bool ReportService::backupToZip(const QList<QDate> &dates, const QString &output
         auto records = mDataMgr->getDailyRecords(date.year(), date.month(), date.day());
         if (records.isEmpty()) continue;
 
-        QString entryPath = QString("data/%1/%2/%3.txt")
-                                .arg(date.year())
-                                .arg(date.month(), 2, 10, QChar('0'))
-                                .arg(date.day(), 2, 10, QChar('0'));
+        QString entryPath = mDataMgr->buildRelativePath(date.year(), date.month(), date.day());
 
         auto sorted = records;
         std::sort(sorted.begin(), sorted.end(), [](const DailyRecord &a, const DailyRecord &b) {

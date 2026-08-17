@@ -38,6 +38,12 @@ bool ConfigManager::load(const QString &configPath)
                 mMainWindowSize = QSize(w, h);
             }
         }
+
+        if (config["data-root"]) {
+            QString root = QString::fromStdString(config["data-root"].as<std::string>());
+            if (!root.trimmed().isEmpty())
+                mDataRoot = root;
+        }
     } catch (const YAML::Exception &) {
         applyDefaults();
         return save();
@@ -54,6 +60,8 @@ bool ConfigManager::save()
     out << YAML::Key << "server" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "port" << YAML::Value << mPort;
     out << YAML::EndMap;
+
+    out << YAML::Key << "data-root" << YAML::Value << mDataRoot.toStdString();
 
     out << YAML::Key << "ui" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "floating_window" << YAML::Value << YAML::BeginMap;
@@ -86,10 +94,13 @@ void ConfigManager::applyDefaults()
     mPort = Constants::DEFAULT_PORT;
     mFloatingWindowPos = QPoint(100, 200);
     mMainWindowSize = QSize(800, 600);
+    mDataRoot = "just-did-data";
 }
 
 int ConfigManager::port() const { QMutexLocker lock(&mMutex); return mPort; }
 void ConfigManager::setPort(int port) { QMutexLocker lock(&mMutex); mPort = port; save(); }
+QString ConfigManager::dataRoot() const { QMutexLocker lock(&mMutex); return mDataRoot; }
+void ConfigManager::setDataRoot(const QString &root) { QMutexLocker lock(&mMutex); mDataRoot = root; save(); }
 QPoint ConfigManager::floatingWindowPosition() const { QMutexLocker lock(&mMutex); return mFloatingWindowPos; }
 void ConfigManager::setFloatingWindowPosition(const QPoint &pos) { QMutexLocker lock(&mMutex); mFloatingWindowPos = pos; save(); }
 QSize ConfigManager::mainWindowSize() const { QMutexLocker lock(&mMutex); return mMainWindowSize; }

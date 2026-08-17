@@ -57,7 +57,7 @@ def fetch_req(dates, host, port):
     return resp.status, ctype, body
 
 
-def verify_zip_body(body, app_root, expect_entries):
+def verify_zip_body(body, data_root, expect_entries):
     """校验 ZIP：DEFLATE、条目无 data/ 前缀、条目内容与本地文件一致。
     返回 (ok, 错误信息)"""
     try:
@@ -77,7 +77,7 @@ def verify_zip_body(body, app_root, expect_entries):
             if not ENTRY_RE.match(name) or name.startswith("data/"):
                 return False, f"条目 {name} 路径不符（应为 YYYY/MM/DD.txt 且无 data/ 前缀）"
 
-            local_path = os.path.join(app_root, "data", *name.split("/"))
+            local_path = os.path.join(data_root, "data", *name.split("/"))
             if not os.path.exists(local_path):
                 return False, f"本地文件不存在: {local_path}"
             with open(local_path, "rb") as f:
@@ -105,7 +105,7 @@ def scenario_single(host, port, app_root):
     if s != 200 or "application/zip" not in ctype:
         print(f"[FAIL] single HTTP {s}, Content-Type {ctype!r}, 期望 200 + application/zip")
         return False
-    ok, err = verify_zip_body(body, app_root,
+    ok, err = verify_zip_body(body, resolve_data_root(app_root),
                               [f"{EXISTING_DATE_1[:4]}/{EXISTING_DATE_1[4:6]}/{EXISTING_DATE_1[6:]}.txt"])
     print(f"{'[PASS]' if ok else '[FAIL]'} single 单文件请求 → 200 + ZIP（1 条目，DEFLATE，无前缀）")
     print_zip_info(body)
@@ -124,7 +124,7 @@ def scenario_multi(host, port, app_root):
     if s != 200 or "application/zip" not in ctype:
         print(f"[FAIL] multi HTTP {s}, Content-Type {ctype!r}, 期望 200 + application/zip")
         return False
-    ok, err = verify_zip_body(body, app_root, expect)
+    ok, err = verify_zip_body(body, resolve_data_root(app_root), expect)
     print(f"{'[PASS]' if ok else '[FAIL]'} multi 多日期请求 → ZIP 仅含存在的日期")
     print(f"       请求 {dates}")
     print_zip_info(body)
@@ -147,7 +147,8 @@ def scenario_missing(host, port, app_root):
 
 def scenario_emptyfile(host, port, app_root):
     # 1. 临时创建空日报文件 data/2020/01/01.txt
-    empty_dir = os.path.join(app_root, "data", "2020", "01")
+    data_root = resolve_data_root(app_root)
+    empty_dir = os.path.join(data_root, "data", "2020", "01")
     os.makedirs(empty_dir, exist_ok=True)
     empty_path = os.path.join(empty_dir, "01.txt")
     with open(empty_path, "wb"):
@@ -178,8 +179,8 @@ def scenario_emptyfile(host, port, app_root):
         # 2. 清理：删除测试文件与空目录
         if os.path.exists(empty_path):
             os.remove(empty_path)
-        for d in (os.path.join(app_root, "data", "2020", "01"),
-                  os.path.join(app_root, "data", "2020")):
+        for d in (os.path.join(data_root, "data", "2020", "01"),
+                  os.path.join(data_root, "data", "2020")):
             try:
                 os.rmdir(d)
             except OSError:
@@ -218,7 +219,7 @@ SCENARIOS = {
 
 
 def find_app_root(cli_root):
-    """定位 just_do.db 所在目录（exe 启动目录）"""
+    """定位 exe 启动目录（config.yml / just-did-data 所在目录）"""
     candidates = []
     if cli_root:
         candidates.append(os.path.abspath(cli_root))
@@ -227,9 +228,29 @@ def find_app_root(cli_root):
         os.path.join(script_dir, "..", "..", "build", "src", "Release")))
     candidates.append(os.getcwd())
     for c in candidates:
-        if os.path.exists(os.path.join(c, "just_do.db")):
+        if os.path.exists(os.path.join(c, "config.yml")) or os.path.exists(os.path.join(c, "just-did-data")):
             return c
     return candidates[0]
+
+
+def resolve_data_root(app_root):
+    """按应用同款规则解析数据根：config.yml 的 data-root（相对按 app-root 解析、绝对原样）
+    → 默认 {app-root}/just-did-data"""
+    config_path = os.path.join(app_root, "config.yml")
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            for line in f:
+                m = re.match(r"^data-root:\s*(.+?)\s*$", line)
+                if m:
+                    value = m.group(1).strip().strip("\"'")
+                    if value:
+                        if os.path.isabs(value):
+                            return value
+                        return os.path.normpath(os.path.join(app_root, value))
+                    break
+    except OSError:
+        pass
+    return os.path.join(app_root, "just-did-data")
 
 
 def main():
@@ -244,7 +265,7 @@ def main():
     parser.add_argument("--port", type=int, default=DEFAULT_PORT)
     parser.add_argument("--scenario", choices=["all"] + list(SCENARIOS), default="all")
     parser.add_argument("--app-root", default=None,
-                        help="exe 启动目录（just_do.db 与 data/ 所在位置），内容比对与 emptyfile 场景需要")
+                        help="exe 启动目录（config.yml / just-did-data 所在位置），内容比对与 emptyfile 场景需要")
     args = parser.parse_args()
 
     app_root = find_app_root(args.app_root)

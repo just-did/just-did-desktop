@@ -7,14 +7,24 @@
 #include <QDirIterator>
 #include <algorithm>
 
+FileManager::FileManager(const QString &dataRoot)
+    : mDataRoot(dataRoot)
+{
+}
+
 // --- Path utilities ---
+
+QString FileManager::dataDir() const
+{
+    return mDataRoot + "/data";
+}
 
 QString FileManager::buildDir(int year, int month) const
 {
-    return QString("data/%1/%2").arg(year).arg(month, 2, 10, QChar('0'));
+    return QString("%1/%2/%3").arg(dataDir()).arg(year).arg(month, 2, 10, QChar('0'));
 }
 
-QString FileManager::buildPath(int year, int month, int day) const
+QString FileManager::buildRelativePath(int year, int month, int day) const
 {
     return QString("data/%1/%2/%3.txt")
         .arg(year)
@@ -22,9 +32,19 @@ QString FileManager::buildPath(int year, int month, int day) const
         .arg(day, 2, 10, QChar('0'));
 }
 
+QString FileManager::buildAbsolutePath(int year, int month, int day) const
+{
+    return mDataRoot + "/" + buildRelativePath(year, month, day);
+}
+
 QString FileManager::buildTmpPath(int year, int month, int day) const
 {
-    return buildPath(year, month, day) + ".tmp";
+    return buildAbsolutePath(year, month, day) + ".tmp";
+}
+
+QString FileManager::resolveIndexPath(const QString &indexPath) const
+{
+    return mDataRoot + "/" + indexPath;
 }
 
 // --- Parsing ---
@@ -51,10 +71,11 @@ QList<DailyRecord> FileManager::parseContent(const QString &text)
 
 // --- Snapshots ---
 
-QString FileManager::buildSnapshotPath(const QString &batchId, int year, int month, int day)
+QString FileManager::buildSnapshotPath(const QString &batchId, int year, int month, int day) const
 {
     // {batchId}-{DD}.txt（批ID在前，与规格一致）
-    return QString("data/%1/%2/%4-%3.txt")
+    return QString("%1/%2/%3/%5-%4.txt")
+        .arg(dataDir())
         .arg(year)
         .arg(month, 2, 10, QChar('0'))
         .arg(day, 2, 10, QChar('0'))
@@ -87,7 +108,7 @@ QString FileManager::serializeContent(const QList<DailyRecord> &records) const
 
 QList<DailyRecord> FileManager::readDailyFile(int year, int month, int day)
 {
-    QString path = buildPath(year, month, day);
+    QString path = buildAbsolutePath(year, month, day);
     QFile file(path);
     if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
         return {};
@@ -99,7 +120,7 @@ QList<DailyRecord> FileManager::readDailyFile(int year, int month, int day)
 
 bool FileManager::existsDailyFile(int year, int month, int day)
 {
-    return QFile::exists(buildPath(year, month, day));
+    return QFile::exists(buildAbsolutePath(year, month, day));
 }
 
 bool FileManager::writeDailyFile(int year, int month, int day, const QList<DailyRecord> &records)
@@ -108,7 +129,7 @@ bool FileManager::writeDailyFile(int year, int month, int day, const QList<Daily
     QDir().mkpath(dir);
 
     QString tmpPath = buildTmpPath(year, month, day);
-    QString targetPath = buildPath(year, month, day);
+    QString targetPath = buildAbsolutePath(year, month, day);
 
     // Write to temp file
     QFile tmpFile(tmpPath);
@@ -134,7 +155,7 @@ bool FileManager::writeDailyFile(int year, int month, int day, const QList<Daily
 
 bool FileManager::deleteDailyFile(int year, int month, int day)
 {
-    QString path = buildPath(year, month, day);
+    QString path = buildAbsolutePath(year, month, day);
     if (!QFile::exists(path)) return true;
 
     if (!QFile::remove(path)) return false;
@@ -145,19 +166,14 @@ bool FileManager::deleteDailyFile(int year, int month, int day)
 
 void FileManager::removeEmptyDirs(const QString &path)
 {
+    // 只清理到 {dataRoot}/data 为止：先删空月目录，再删空年目录，不越过 data 目录层
     QDir dir(path);
-    if (dir.exists() && dir.isEmpty()) {
+    if (dir.exists() && dir.isEmpty())
         dir.rmdir(".");
-        // Also try to remove parent year directory if empty
-        QDir parent = QFileInfo(path).absoluteDir();
-        if (parent.exists() && parent.isEmpty()) {
-            // Only remove if it's a year directory (4 digits)
-            bool isYear = parent.dirName().length() == 4;
-            if (isYear) {
-                parent.rmdir(".");
-            }
-        }
-    }
+
+    QDir parent = QFileInfo(path).absoluteDir();
+    if (parent.path() != dataDir() && parent.exists() && parent.isEmpty())
+        parent.rmdir(".");
 }
 
 // --- Stats ---
@@ -167,7 +183,7 @@ QJsonObject FileManager::getStats()
     qint64 totalSize = 0;
     QMap<int, qint64> byYear;
 
-    QDirIterator it("data", QDir::Files, QDirIterator::Subdirectories);
+    QDirIterator it(dataDir(), QDir::Files, QDirIterator::Subdirectories);
     while (it.hasNext()) {
         it.next();
         QFileInfo fi = it.fileInfo();

@@ -13,6 +13,7 @@ dist/
 # Runtime generated
 /config.yml
 /just_do.db
+/just-did-data/
 logs/
 data/
 qt_debug.log

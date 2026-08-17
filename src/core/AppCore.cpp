@@ -5,6 +5,9 @@
 #include "FileManager.h"
 #include "DataManager.h"
 
+#include <QCoreApplication>
+#include <QDir>
+
 AppCore::AppCore(QObject *parent) : QObject(parent) {}
 
 AppCore *AppCore::instance()
@@ -29,24 +32,31 @@ bool AppCore::init()
     }
     LogManager::instance()->info("配置管理器初始化完成");
 
-    // 3. DatabaseManager
+    // 3. 解析数据根：配置原始串缺失/空白 → 默认 just-did-data；相对路径按应用目录解析；绝对路径原样
+    QString dataRoot = mConfigMgr->dataRoot().trimmed();
+    if (dataRoot.isEmpty())
+        dataRoot = "just-did-data";
+    dataRoot = QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(dataRoot);
+    LogManager::instance()->info(QString("数据根目录：%1").arg(dataRoot));
+
+    // 4. DatabaseManager
     mDbMgr.reset(new DatabaseManager());
-    if (!mDbMgr->open("just_do.db")) {
+    if (!mDbMgr->open(dataRoot + "/just_do.db")) {
         LogManager::instance()->error("数据库初始化失败");
         emit startupFailed("数据库初始化失败");
         return false;
     }
     LogManager::instance()->info("数据库初始化完成");
 
-    // 4. FileManager
-    mFileMgr.reset(new FileManager());
+    // 5. FileManager
+    mFileMgr.reset(new FileManager(dataRoot));
     LogManager::instance()->info("文件管理器初始化完成");
 
-    // 5. DataManager
+    // 6. DataManager
     mDataMgr.reset(new DataManager(mFileMgr.data(), mDbMgr.data()));
     LogManager::instance()->info("数据管理器初始化完成");
 
-    // 6. HttpServer initialization is handled by service layer through startServer()
+    // 7. HttpServer initialization is handled by service layer through startServer()
 
     mInitialized = true;
     LogManager::instance()->info("应用核心初始化完成");
