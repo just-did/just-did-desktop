@@ -2,6 +2,7 @@
 #include "core/DataManager.h"
 #include "core/FileManager.h"
 #include "core/LogManager.h"
+#include "core/FileManager.h"
 
 #include "SimpleZip.h"
 
@@ -85,14 +86,7 @@ bool ReportService::backupToZip(const QList<QDate> &dates, const QString &output
 
         QString entryPath = mDataMgr->buildRelativePath(date.year(), date.month(), date.day());
 
-        auto sorted = records;
-        std::sort(sorted.begin(), sorted.end(), [](const DailyRecord &a, const DailyRecord &b) {
-            return a.time < b.time;
-        });
-        QStringList parts;
-        for (const auto &r : sorted)
-            parts.append(r.time + "\n" + r.content);
-        QString content = parts.join("\n\n") + "\n";
+        QString content = FileManager::serializeRecords(records);
 
         writer.addFile(entryPath, content.toUtf8());
     }

@@ -5,6 +5,8 @@
 #include <QFileInfo>
 #include <QTextStream>
 #include <QDirIterator>
+#include <QRegularExpression>
+#include <QTime>
 #include <algorithm>
 
 FileManager::FileManager(const QString &dataRoot)
@@ -52,21 +54,57 @@ QString FileManager::resolveIndexPath(const QString &indexPath) const
 QList<DailyRecord> FileManager::parseContent(const QString &text)
 {
     QList<DailyRecord> records;
+    QString normalizedText = text;
+    normalizedText.replace("\r\n", "\n");
+    normalizedText.replace('\r', '\n');
+    static const QRegularExpression timeHeader("^(\\d{2}):(\\d{2})$");
+    const auto isValidTimeHeader = [](const QString &line) {
+        const auto match = timeHeader.match(line.trimmed());
+        return match.hasMatch()
+            && QTime(match.captured(1).toInt(), match.captured(2).toInt()).isValid();
+    };
 
-    QStringList blocks = text.split("\n\n", Qt::SkipEmptyParts);
-    for (const auto &block : blocks) {
-        int newlinePos = block.indexOf('\n');
-        if (newlinePos <= 0) continue;
+    DailyRecord current;
+    QStringList contentLines;
+    int pendingEmptyLines = 0;
+    const auto flushCurrent = [&]() {
+        if (current.time.isEmpty()) return;
+        current.content = normalizeRecordContent(contentLines.join('\n').trimmed());
+        if (!current.content.isEmpty()) records.append(current);
+        current = {};
+        contentLines.clear();
+        pendingEmptyLines = 0;
+    };
 
-        DailyRecord r;
-        r.time = block.left(newlinePos).trimmed();
-        r.content = block.mid(newlinePos + 1).trimmed();
-
-        if (!r.time.isEmpty() && !r.content.isEmpty()) {
-            records.append(r);
+    const QStringList lines = normalizedText.split('\n', Qt::KeepEmptyParts);
+    for (const QString &line : lines) {
+        if ((current.time.isEmpty() || pendingEmptyLines > 0) && isValidTimeHeader(line)) {
+            flushCurrent();
+            current.time = line.trimmed();
+            continue;
         }
+        if (current.time.isEmpty()) continue;
+        if (line.isEmpty()) {
+            ++pendingEmptyLines;
+            continue;
+        }
+        while (pendingEmptyLines > 0) {
+            contentLines.append(QString());
+            --pendingEmptyLines;
+        }
+        contentLines.append(line);
     }
+    flushCurrent();
     return records;
+}
+
+QString FileManager::normalizeRecordContent(const QString &content)
+{
+    QString normalized = content;
+    normalized.replace("\r\n", "\n");
+    normalized.replace('\r', '\n');
+    normalized.replace(QRegularExpression("\\n{2,}"), "\n");
+    return normalized;
 }
 
 // --- Snapshots ---
@@ -87,7 +125,7 @@ void FileManager::removeSnapshot(const QString &batchId, int year, int month, in
     QFile::remove(buildSnapshotPath(batchId, year, month, day));
 }
 
-QString FileManager::serializeContent(const QList<DailyRecord> &records) const
+QString FileManager::serializeRecords(const QList<DailyRecord> &records)
 {
     if (records.isEmpty()) return {};
 
@@ -99,9 +137,11 @@ QString FileManager::serializeContent(const QList<DailyRecord> &records) const
 
     QStringList parts;
     for (const auto &r : sorted) {
-        parts.append(r.time + "\n" + r.content);
+        const QString content = normalizeRecordContent(r.content).trimmed();
+        if (!r.time.trimmed().isEmpty() && !content.isEmpty())
+            parts.append(r.time.trimmed() + "\n" + content);
     }
-    return parts.join("\n\n") + "\n";
+    return parts.isEmpty() ? QString() : parts.join("\n\n") + "\n";
 }
 
 // --- Read / Write / Delete ---
@@ -136,7 +176,7 @@ bool FileManager::writeDailyFile(int year, int month, int day, const QList<Daily
     if (!tmpFile.open(QIODevice::WriteOnly | QIODevice::Text))
         return false;
 
-    QString content = serializeContent(records);
+    QString content = serializeRecords(records);
     tmpFile.write(content.toUtf8());
     tmpFile.flush();
     tmpFile.close();

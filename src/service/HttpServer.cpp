@@ -1,6 +1,7 @@
 #include "HttpServer.h"
 #include "SyncService.h"
 #include "core/LogManager.h"
+#include "NetworkAddressSelector.h"
 
 #include <QHttpServer>
 #include <QTcpServer>
@@ -188,12 +189,13 @@ void HttpServer::setupRoutes()
     });
 }
 
-static bool isVirtualAdapter(const QNetworkInterface &iface)
+static bool isTunnelAdapter(const QNetworkInterface &iface)
 {
     static const QStringList keywords = {
         "VMware", "VirtualBox", "Hyper-V", "vEthernet",
         "Docker", "WSL", "Virtual", "TAP", "Tunnel", "VPN",
-        "Bluetooth", "Loopback"
+        "TUN", "Wintun", "WireGuard", "Mihomo", "Clash", "sing-box",
+        "ZeroTier", "Tailscale", "Bluetooth", "Loopback"
     };
     const QString hrName = iface.humanReadableName();
     const QString name = iface.name();
@@ -203,47 +205,58 @@ static bool isVirtualAdapter(const QNetworkInterface &iface)
             return true;
         }
     }
-    return false;
+    return iface.type() == QNetworkInterface::Virtual
+        || iface.type() == QNetworkInterface::Loopback;
+}
+
+static bool isPrivateIPv4(const QHostAddress &address)
+{
+    const quint32 ip = address.toIPv4Address();
+    return (ip & 0xff000000U) == 0x0a000000U
+        || (ip & 0xfff00000U) == 0xac100000U
+        || (ip & 0xffff0000U) == 0xc0a80000U;
 }
 
 QString HttpServer::getLocalIP() const
 {
+    QList<NetworkAddressCandidate> candidates;
     const auto interfaces = QNetworkInterface::allInterfaces();
-
-    // First pass: prefer physical adapters that are up and running
     for (const auto &iface : interfaces) {
         if (iface.flags().testFlag(QNetworkInterface::IsLoopBack))
             continue;
         if (!iface.flags().testFlag(QNetworkInterface::IsUp) ||
             !iface.flags().testFlag(QNetworkInterface::IsRunning))
             continue;
-        if (isVirtualAdapter(iface))
+        if (isTunnelAdapter(iface)) {
+            LogManager::instance()->debug(QString("[HttpServer] 排除隧道/虚拟接口: %1 (%2)")
+                                              .arg(iface.humanReadableName(), iface.name()));
             continue;
+        }
 
         const auto entries = iface.addressEntries();
         for (const auto &entry : entries) {
-            QHostAddress addr = entry.ip();
+            const QHostAddress addr = entry.ip();
             if (addr.protocol() == QAbstractSocket::IPv4Protocol &&
                 !addr.isLoopback()) {
-                return addr.toString();
+                const bool physical = iface.type() == QNetworkInterface::Ethernet
+                    || iface.type() == QNetworkInterface::Wifi;
+                const bool privateAddress = isPrivateIPv4(addr);
+                const int score = (privateAddress ? 100 : 0) + (physical ? 50 : 0);
+                candidates.append({addr.toString(), iface.name(), physical, privateAddress, false});
+                LogManager::instance()->debug(
+                    QString("[HttpServer] IPv4 候选: %1, 接口=%2, score=%3")
+                        .arg(addr.toString(), iface.humanReadableName()).arg(score));
             }
         }
     }
 
-    // Fallback: if all filtered out, return any available non-loopback IPv4
-    for (const auto &iface : interfaces) {
-        if (iface.flags().testFlag(QNetworkInterface::IsUp) &&
-            !iface.flags().testFlag(QNetworkInterface::IsLoopBack)) {
-            const auto entries = iface.addressEntries();
-            for (const auto &entry : entries) {
-                QHostAddress addr = entry.ip();
-                if (addr.protocol() == QAbstractSocket::IPv4Protocol &&
-                    !addr.isLoopback()) {
-                    return addr.toString();
-                }
-            }
-        }
+    const QString selected = selectLanAddress(candidates);
+    if (selected != QStringLiteral("127.0.0.1")) {
+        LogManager::instance()->info(
+            QString("[HttpServer] 选择局域网 IPv4 地址: %1").arg(selected));
+        return selected;
     }
+    LogManager::instance()->warn("[HttpServer] 未找到非隧道 IPv4 地址，二维码回退到 127.0.0.1");
     return "127.0.0.1";
 }
 

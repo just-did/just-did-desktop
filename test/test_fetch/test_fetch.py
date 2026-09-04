@@ -34,9 +34,9 @@ DEFAULT_PORT = 18080
 
 # 当前 app 数据中存在的日期（依赖运行环境实际数据，按需调整）
 EXISTING_DATE_1 = "20260801"
-EXISTING_DATE_2 = "20260814"
+EXISTING_DATE_2 = "20260802"
 MISSING_DATE = "20260725"    # 无文件
-MISSING_DATE_2 = "20260816"  # 无文件（明天）
+MISSING_DATE_2 = "20260814"  # 无文件
 NO_DATA_DATE = "20190101"    # 全部无文件场景用
 EMPTY_DATE = "20200101"      # emptyfile 场景用（临时创建）
 

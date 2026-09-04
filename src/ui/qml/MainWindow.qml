@@ -369,17 +369,12 @@ Rectangle {
                 anchors.margins: 4
                 spacing: 6
 
-                TextArea {
+                ScrollableTextArea {
                     id: inputArea
                     Layout.fillWidth: true
                     Layout.fillHeight: true
-                    font.pixelSize: 12
+                    showVerticalScrollBar: false
                     placeholderText: "输入今天做了什么..."
-                    wrapMode: TextArea.Wrap
-                    background: Rectangle {
-                        color: "transparent"
-                        border.width: 0
-                    }
                 }
 
                 // Submit button
@@ -401,7 +396,8 @@ Rectangle {
                             if (inputArea.text.trim() !== "") {
                                 floatingInputVM.inputText = inputArea.text
                                 floatingInputVM.submitRecord()
-                                inputArea.text = ""
+                                if (floatingInputVM.inputText === "")
+                                    inputArea.text = ""
                             }
                         }
                     }

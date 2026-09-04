@@ -198,9 +198,8 @@ SyncService::StagingParse SyncService::parseStagingZip(const QByteArray &zipData
         }
         mz_zip_reader_entry_close(reader);
 
-        // 归一化换行后解析（与日报文件同构，复用 parseContent）
+        // 日报和暂存文件共用兼容解析器，由其统一换行并保护记录边界。
         QString text = QString::fromUtf8(content);
-        text.replace("\r\n", "\n");
         auto records = FileManager::parseContent(text);
         if (!records.isEmpty()) {
             result.recordsByDate[date] = records;
@@ -364,16 +363,7 @@ SyncService::FetchResponse SyncService::fetch(const QJsonObject &request)
                                 .arg(date.month(), 2, 10, QChar('0'))
                                 .arg(date.day(), 2, 10, QChar('0'));
 
-        auto sorted = records;
-        std::sort(sorted.begin(), sorted.end(), [](const DailyRecord &a, const DailyRecord &b) {
-            return a.time < b.time;
-        });
-        QStringList parts;
-        for (const auto &r : sorted)
-            parts.append(r.time + "\n" + r.content);
-        // 空记录日期 → 空内容条目（与 FileManager::serializeContent 的空列表语义一致）
-        QByteArray content = parts.isEmpty() ? QByteArray()
-                                             : (parts.join("\n\n") + "\n").toUtf8();
+        QByteArray content = FileManager::serializeRecords(records).toUtf8();
 
         QByteArray nameUtf8 = entryPath.toUtf8();
         mz_zip_file fileInfo = {};

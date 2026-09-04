@@ -29,14 +29,14 @@ public:
     QString buildSnapshotPath(const QString &batchId, int year, int month, int day) const;
     void removeSnapshot(const QString &batchId, int year, int month, int day);
 
-    // 解析日报/暂存文件文本（\n\n 分块，首行时间，块内多行内容）
+    static QString normalizeRecordContent(const QString &content);
     static QList<DailyRecord> parseContent(const QString &text);
+    static QString serializeRecords(const QList<DailyRecord> &records);
 
 private:
     QString buildDir(int year, int month) const;
     QString dataDir() const;
     void removeEmptyDirs(const QString &path);
-    QString serializeContent(const QList<DailyRecord> &records) const;
 
     const QString mDataRoot;
 };

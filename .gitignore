@@ -22,3 +22,7 @@ qr_test_output.png
 
 # Python
 __pycache__/
+
+# codex
+.agents
+AGENTS.md

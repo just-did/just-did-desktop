@@ -29,7 +29,7 @@ ErrorCode DataManager::addRecord(int year, int month, int day,
     }
 
     // Append new record and sort
-    DailyRecord newRec{time, content};
+    DailyRecord newRec{time, FileManager::normalizeRecordContent(content).trimmed()};
     records.append(newRec);
     std::sort(records.begin(), records.end(), [](const DailyRecord &a, const DailyRecord &b) {
         return a.time < b.time;
@@ -46,11 +46,7 @@ ErrorCode DataManager::addRecord(int year, int month, int day,
         return ErrorCode::StorageError;
     }
 
-    QStringList parts;
-    for (const auto &r : records) {
-        parts.append(r.time + "\n" + r.content);
-    }
-    QString fileContent = parts.join("\n\n") + "\n";
+    QString fileContent = FileManager::serializeRecords(records);
     tmpFile.write(fileContent.toUtf8());
     tmpFile.flush();
     tmpFile.close();
@@ -112,11 +108,7 @@ ErrorCode DataManager::mergeRecords(const QMap<QDate, QList<DailyRecord>> &recor
             });
 
             // 序列化并写快照
-            QStringList parts;
-            for (const auto &r : merged) {
-                parts.append(r.time + "\n" + r.content);
-            }
-            QString content = parts.join("\n\n") + "\n";
+            QString content = FileManager::serializeRecords(merged);
 
             QString snapshotPath = mFileMgr->buildSnapshotPath(batchId, date.year(), date.month(), date.day());
             QDir().mkpath(QFileInfo(snapshotPath).absolutePath());

@@ -1,5 +1,4 @@
 import QtQuick
-import QtQuick.Controls
 
 Window {
     id: floatingWin
@@ -164,7 +163,7 @@ Window {
                 }
             }
 
-            TextArea {
+            ScrollableTextArea {
                 id: inputArea
                 anchors.top: parent.top
                 anchors.topMargin: 36
@@ -175,15 +174,16 @@ Window {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 12
                 placeholderText: "输入内容..."
-                wrapMode: TextArea.Wrap
-                focus: true
-
-                Keys.onReturnPressed: function(event) {
+                enterSubmits: true
+                autoFocus: true
+                onSubmitRequested: {
                     if (inputArea.text.trim() !== "") {
                         floatingInputVM.inputText = inputArea.text
                         floatingInputVM.submitRecord()
-                        inputArea.text = ""
-                        floatingWin.expanded = false
+                        if (floatingInputVM.inputText === "") {
+                            inputArea.text = ""
+                            floatingWin.expanded = false
+                        }
                     }
                 }
             }
@@ -194,6 +194,26 @@ Window {
     onActiveChanged: {
         if (!active && expanded) {
             expanded = false
+        }
+    }
+
+    Rectangle {
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.top: parent.top
+        anchors.topMargin: 8
+        visible: toastVM.message !== ""
+        color: "#cc000000"
+        radius: 6
+        width: floatingToastText.implicitWidth + 24
+        height: floatingToastText.implicitHeight + 12
+        z: 100
+
+        Text {
+            id: floatingToastText
+            anchors.centerIn: parent
+            text: toastVM.message
+            color: "white"
+            font.pixelSize: 11
         }
     }
 }

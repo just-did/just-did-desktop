@@ -95,6 +95,37 @@ def scenario_normal(host, port):
     return check("normal 正常提交", s, j, 200, 0)
 
 
+def scenario_mixed_newlines(host, port):
+    """ZIP 内混合换行及连续空行应由服务端统一规范化。"""
+    batch_id = uuid.uuid4().hex
+    date = "20301230"
+    mixed = "09:00\r\n第一行\r\n\r\n第二行\r\n\r\n10:00\n第三行\n\n\n第四行\n"
+    data = build_zip(batch_id, {f"staging-{date}.txt": mixed})
+    s, j = submit(batch_id, data, host, port)
+    ok = check("mixed_newlines ZIP 混合换行规范化", s, j, 200, 0)
+    if not ok:
+        return False
+
+    conn = http.client.HTTPConnection(host, port, timeout=60)
+    conn.request("POST", "/sync/fetch",
+                 body=json.dumps({"dates": [date]}),
+                 headers={"Content-Type": "application/json"})
+    resp = conn.getresponse()
+    body = resp.read()
+    conn.close()
+    if resp.status != 200:
+        print(f"[FAIL] mixed_newlines 拉取校验失败: HTTP {resp.status}")
+        return False
+    with zipfile.ZipFile(io.BytesIO(body)) as zf:
+        content = zf.read("2030/12/30.txt").decode("utf-8")
+    expected = "09:00\n第一行\n第二行\n\n10:00\n第三行\n第四行"
+    if expected not in content.replace("\r\n", "\n"):
+        print(f"[FAIL] mixed_newlines 规范化内容不符合预期: {content!r}")
+        return False
+    print("       混合 CRLF/CR/LF 已统一，正文连续空行已压缩")
+    return True
+
+
 def scenario_idempotent(host, port):
     batch_id = uuid.uuid4().hex
     data = build_zip(batch_id, {f"staging-{TEST_DATE_1}.txt": SAMPLE_RECORDS_1})
@@ -247,6 +278,7 @@ def scenario_resume(host, port, app_root):
 
 SCENARIOS = {
     "normal": scenario_normal,
+    "mixed_newlines": scenario_mixed_newlines,
     "idempotent": scenario_idempotent,
     "badid": scenario_badid,
     "corrupt": scenario_corrupt,
