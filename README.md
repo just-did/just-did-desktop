@@ -102,7 +102,7 @@ cmake --build build --config Release
 ## 打包发布
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.0.0]
+powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.1.1]
 ```
 
 四步流水线：编译 → windeployqt 部署 Qt 运行库 → 组装暂存目录（自动剔除 `config.yml`、`just-did-data/`、`just_do.db`、`data/`、`logs/` 等运行时脏数据）→ 压缩。产物为 `dist/JustDid_v<版本>_portable.zip`，解压即用。

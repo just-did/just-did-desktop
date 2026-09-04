@@ -1,8 +1,8 @@
 # One-click packaging: build -> windeployqt -> staging -> dist/JustDid_v<Version>_portable.zip
-# Usage: powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.0.0]
+# Usage: powershell -ExecutionPolicy Bypass -File scripts/package.ps1 [-Version 1.1.1]
 # NOTE: keep this file ASCII-only. Windows PowerShell 5.1 reads BOM-less files as ANSI;
 #       non-ASCII comments can swallow newlines and silently skip code blocks.
-param([string]$Version = "1.0.0")
+param([string]$Version = "1.1.1")
 
 $ErrorActionPreference = "Stop"
 
